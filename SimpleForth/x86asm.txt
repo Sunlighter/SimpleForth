@@ -1,0 +1,842 @@
+hex
+vocabulary x86asm
+vocabulary x86asm_innards
+also x86asm_innards definitions
+variable _swap_cc_tab
+pf-bytes 000107060405030208090A0B0F0E0D0C _swap_cc_tab !
+also x86asm definitions
+: swapcc 10 umin _swap_cc_tab @ bytearray@ ;
+\ ------ condition code specifiers ------
+: ?o 0 ;
+: ?no 1 ;
+: ?b 2 ;     : ?nae 2 ;   : ?c 2 ;
+: ?nb 3 ;    : ?ae 3 ;    : ?nc 3 ;
+: ?e 4 ;     : ?z 4 ;
+: ?ne 5 ;    : ?nz 5 ;
+: ?be 6 ;    : ?na 6 ;
+: ?nbe 7 ;   : ?a 7 ;
+: ?s 8 ;
+: ?ns 9 ;
+: ?p 0a ;    : ?pe 0a ;
+: ?np 0b ;   : ?po 0b ;
+: ?l 0c ;    : ?nge 0c ;
+: ?nl 0d ;   : ?ge 0d ;
+: ?le 0e ;   : ?ng 0e ;
+: ?nle 0f ;  : ?g 0f ;
+\ ------ register part of mod/r/m byte ------
+: eax  0 ;   : ecx  8 ;   : edx 10 ;   : ebx 18 ;
+: esp 20 ;   : ebp 28 ;   : esi 30 ;   : edi 38 ;
+: ax  0 ;   : cx  8 ;   : dx 10 ;   : bx 18 ;
+: sp 20 ;   : bp 28 ;   : si 30 ;   : di 38 ;
+: al  0 ;   : cl  8 ;   : dl 10 ;   : bl 18 ;
+: ah 20 ;   : ch 28 ;   : dh 30 ;   : bh 38 ;
+: mmx0  0 ;   : mmx1  8 ;   : mmx2 10 ;   : mmx3 18 ;
+: mmx4 20 ;   : mmx5 28 ;   : mmx6 30 ;   : mmx7 38 ;
+: xmm0  0 ;   : xmm1  8 ;   : xmm2 10 ;   : xmm3 18 ;
+: xmm4 20 ;   : xmm5 28 ;   : xmm6 30 ;   : xmm7 38 ;
+: st(0)  0 ;   : st(1)  8 ;   : st(2) 10 ;  : st(3) 18 ;
+: st(4) 20 ;   : st(5) 28 ;   : st(6) 30 ;   : st(7) 38 ;
+: /0  0 ;   : /1  8 ;   : /2 10 ;   : /3 18 ;
+: /4 20 ;   : /5 28 ;   : /6 30 ;   : /7 38 ;
+: es 0 ;   : cs 8 ;   : ss 10 ;   : ds 18 ;   : fs 20 ;   : gs 28 ;
+\ ------ memory part of mod/r/m byte (32 bit mode) ------
+: ,[eax] c, ;          : ,d8[eax] 40 or c, ;
+: ,[ecx] 1 or c, ;     : ,d8[ecx] 41 or c, ;
+: ,[edx] 2 or c, ;     : ,d8[edx] 42 or c, ;
+: ,[ebx] 3 or c, ;     : ,d8[ebx] 43 or c, ;
+: ,[--]  4 or c, ;     : ,d8[--]  44 or c, ;
+: ,d32   5 or c, ;     : ,d8[ebp] 45 or c, ;
+: ,[esi] 6 or c, ;     : ,d8[esi] 46 or c, ;
+: ,[edi] 7 or c, ;     : ,d8[edi] 47 or c, ;
+: ,d32[eax] 80 or c, ;     : ,eax c0 or c, ;  : ,st(0) c0 or c, ;
+: ,d32[ecx] 81 or c, ;     : ,ecx c1 or c, ;  : ,st(1) c1 or c, ;
+: ,d32[edx] 82 or c, ;     : ,edx c2 or c, ;  : ,st(2) c2 or c, ;
+: ,d32[ebx] 83 or c, ;     : ,ebx c3 or c, ;  : ,st(3) c3 or c, ;
+: ,d32[--]  84 or c, ;     : ,esp c4 or c, ;  : ,st(4) c4 or c, ;
+: ,d32[ebp] 85 or c, ;     : ,ebp c5 or c, ;  : ,st(5) c5 or c, ;
+: ,d32[esi] 86 or c, ;     : ,esi c6 or c, ;  : ,st(6) c6 or c, ;
+: ,d32[edi] 87 or c, ;     : ,edi c7 or c, ;  : ,st(7) c7 or c, ;
+: ,ax c0 or c, ;   : ,al c0 or c, ;   : ,mmx0 c0 or c, ;   : ,xmm0 c0 or c, ;
+: ,cx c1 or c, ;   : ,cl c1 or c, ;   : ,mmx1 c1 or c, ;   : ,xmm1 c1 or c, ;
+: ,dx c2 or c, ;   : ,dl c2 or c, ;   : ,mmx2 c2 or c, ;   : ,xmm2 c2 or c, ;
+: ,bx c3 or c, ;   : ,bl c3 or c, ;   : ,mmx3 c3 or c, ;   : ,xmm3 c3 or c, ;
+: ,sp c4 or c, ;   : ,ah c4 or c, ;   : ,mmx4 c4 or c, ;   : ,xmm4 c4 or c, ;
+: ,bp c5 or c, ;   : ,ch c5 or c, ;   : ,mmx5 c5 or c, ;   : ,xmm5 c5 or c, ;
+: ,si c6 or c, ;   : ,dh c6 or c, ;   : ,mmx6 c6 or c, ;   : ,xmm6 c6 or c, ;
+: ,di c7 or c, ;   : ,bh c7 or c, ;   : ,mmx7 c7 or c, ;   : ,xmm7 c7 or c, ;
+\ ------ memory part of mod/r/m byte (16 bit mode) ------
+: ,[bx+si] c, ;       : ,d8[bx+si] 40 or c, ;  : ,d16[bx+si] 80 or c, ;
+: ,[bx+di] 1 or c, ;  : ,d8[bx+di] 41 or c, ;  : ,d16[bx+di] 81 or c, ;
+: ,[bp+si] 2 or c, ;  : ,d8[bp+si] 42 or c, ;  : ,d16[bp+si] 82 or c, ;
+: ,[bp+di] 3 or c, ;  : ,d8[bp+di] 43 or c, ;  : ,d16[bp+di] 83 or c, ;
+: ,[si]    4 or c, ;  : ,d8[si]    44 or c, ;  : ,d16[si]    84 or c, ;
+: ,[di]    5 or c, ;  : ,d8[di]    45 or c, ;  : ,d16[di]    85 or c, ;
+: ,d16     6 or c, ;  : ,d8[bp]    46 or c, ;  : ,d16[bp]    86 or c, ;
+: ,[bx]    7 or c, ;  : ,d8[bx]    47 or c, ;  : ,d16[bx]    87 or c, ;
+\ ------ scaled index part of sib byte ------
+: eax*1 0 ;   : ecx*1 8 ;   : edx*1 10 ;   : ebx*1 18 ;
+: none 20 ;   : ebp*1 28 ;  : esi*1 30 ;   : edi*1 38 ;
+: eax*2 40 ;  : ecx*2 48 ;  : edx*2 50 ;   : ebx*2 58 ;
+              : ebp*2 68 ;  : esi*2 70 ;   : edi*2 78 ;
+: eax*4 80 ;  : ecx*4 88 ;  : edx*4 90 ;   : ebx*4 98 ;
+              : ebp*4 a8 ;  : esi*4 b0 ;   : edi*4 b8 ;
+: eax*8 c0 ;  : ecx*8 c8 ;  : edx*8 d0 ;   : ebx*8 d8 ;
+              : ebp*8 e8 ;  : esi*8 f0 ;   : edi*8 f8 ;
+\ ------ base part of sib byte ------
+: +eax c, ;        : +ecx 1 or c, ;   : +edx 2 or c, ;   : +ebx 3 or c, ;
+: +esp 4 or c, ;   : +ebp 5 or c, ;   : +esi 6 or c, ;   : +edi 7 or c, ;
+: +d32 5 or c, ;
+\ ------ some instruction prefixes ------
+: lock: f0 c, ;
+: fs: 64 c, ;
+also x86asm_innards definitions
+variable _32bitmode  -1 _32bitmode !
+previous definitions
+: 32bitmode _32bitmode on ;
+: 16bitmode _32bitmode off ;
+: [32] _32bitmode @ not if 66 c, then ;
+: [16] _32bitmode @ if 66 c, then ;
+also x86asm_innards definitions
+: 8/ 3 rshift ;
+previous definitions
+\ ------ alu operations ------
+: add 0 ;   : adc 10 ;   : and 20 ;   : xor 30 ;
+: or 8 ;    : sbb 18 ;   : sub 28 ;   : cmp 38 ;
+: alu.al#8   04 + c, ;       \ as adc alu.al#8 3 c,
+: alu.ax#16  [16] 05 + c, ;
+: alu.eax#32 [32] 05 + c, ;
+: alu.b#8    80 c, ;
+: alu.w#16   [16] 81 c, ; \ as add alu.w#16 ,eax 32 w,
+: alu.l#32   [32] 81 c, ;
+: alu.w#8    [16] 83 c, ; \ sign-extends immediate value
+: alu.l#8    [32] 83 c, ;
+: alu.b->    c, ;
+: alu.w->    [16] 01 + c, ;
+: alu.l->    [32] 01 + c, ;
+: alu.b<-    02 + c, ;
+: alu.w<-    [16] 03 + c, ;
+: alu.l<-    [32] 03 + c, ;
+\ ------ rotate and shift operations ------
+: rol  0 ;   : ror  8 ;   : rcl 10 ;   : rcr 18 ;
+: shl 20 ;   : shr 28 ;   : sal 20 ;   : sar 38 ;
+    \ not a typo: 30 is undefined
+: sh.b1   d0 c, ; \ as rol sh.b1 ,[esi]
+: sh.bcl  d2 c, ;
+: sh.b#8  c0 c, ;
+: sh.w1   [16] d1 c, ;
+: sh.wcl  [16] d3 c, ;
+: sh.w#8  [16] c1 c, ;
+: sh.l1   [32] d1 c, ;
+: sh.lcl  [32] d3 c, ;
+: sh.l#8  [32] c1 c, ;
+\ ------ other 386/486 operations -----
+: aaa       37 c, ;
+: aad       d5 c, 0a c, ;
+: aad#8     d5 c, ;
+: aam       d4 c, 0a c, ;
+: aam#8     d4 c, ;
+: aas       3f c, ;
+: boundw    [16] 62 c, ; \ mem operand required which contains bounds
+: boundl    [32] 62 c, ;
+: bsfw<-    [16] 0f c, bc c, ;
+: bsfl<-    [32] 0f c, bc c, ;
+: bsrw<-    [16] 0f c, bd c, ;
+: bsrl<-    [32] 0f c, bd c, ;
+: bswap     8/ 0f c, c8 + c, ; \ as eax bswap
+: bt 20 ;   : bts 28 ;   : btr 30 ;    : btc 38 ;
+: bt.w       [16] 0f c, 83 + c, ; \ as bt bt.w ax ,[esi]
+: bt.l       [32] 0f c, 83 + c, ; \ as bts bt.l eax ,[esi]
+: bt.w#8     [16] 0f c, ba c, ; \ as bts bt.w#8 ,[esi] 32 c,
+: bt.l#8     [32] 0f c, ba c, ; \ as btr bt.l#8 ,[esi] 34 c,
+: call       e8 c, ;       \ call offset
+: calli      ff c, /2 ; \ call indirect
+: callfar    9a c, ;
+: callfari   ff c, /3 ; \ far call indirect
+: cbw        [16] 98 c, ; \ al -> ax
+: cwde       [32] 98 c, ; \ ax -> eax
+: clc        f8 c, ;
+: cld        fc c, ;
+: cli        fa c, ;
+: cmc        f5 c, ;
+: cmovw<-    [16] 0f c, 40 + c, ; \ as ?nz cmovw<- ax ,bx
+: cmovl<-    [32] 0f c, 40 + c, ; \ as ?a cmovl<- eax ,[esi]
+: cmpxchgb   0f c, b0 c, ;
+: cmpxchgw   [16] 0f c, b1 c, ;
+: cmpxchgl   [32] 0f c, b1 c, ;
+: cmpxchg8b  0f c, c7 c, /1 ;
+: cpuid      0f c, a2 c, ;
+: cwd        [16] 99 c, ; \ ax -> dx:ax
+: cdq        [32] 99 c, ; \ eax -> edx:eax
+: daa        27 c, ;
+: das        2f c, ;
+: decb       fe c, /1 ;
+: decw       [16] ff c, /1 ;
+: decl       [32] ff c, /1 ;
+: decw<-     [16] 8/ 48 + c, ; \ as ax decw<-
+: decl<-     [32] 8/ 48 + c, ; \ as eax decl<-
+: divb       f6 c, /6 ;
+  \ divide ax by r/m8, quotient -> al, remainder -> ah
+: divw       [16] f7 c, /6 ;
+  \ divide dx:ax by r/m16, quotient -> ax, remainder -> dx
+: divl       [32] f7 c, /6 ;
+  \ divide edx:eax by r/m32, quotient -> eax, remainder -> edx
+: enter#16#8 c8 c, ;
+: hlt        f4 c, ;
+: idivb      f6 c, /7 ;
+  \ divide ax by r/m8, quotient -> al, remainder -> ah
+: idivw      [16] f7 c, /7 ;
+  \ divide dx:ax by r/m16, quotient -> ax, remainder -> dx
+: idivl      [32] f7 c, /7 ;
+  \ divide edx:eax by r/m32, quotient -> eax, remainder -> edx
+: imulb      f6 c, /5 ;         \ al times r/m8 -> ax
+: imulw      [16] f7 c, /5 ;    \ ax times r/m16 -> dx:ax
+: imull      [32] f7 c, /5 ;    \ eax times r/m32 -> edx:eax
+: imulw2     [16] 0f c, af c, ; \ reg16 *= r/m16
+: imull2     [32] 0f c, af c, ; \ reg32 *= r/m32
+: imulw<-#8  [16] 6b c, ;       \ reg16 = r/m16 * signed immed8
+: imull<-#8  [32] 6b c, ;       \ reg32 = r/m32 * signed immed8
+: imulw<-#16 [16] 69 c, ;       \ reg16 = r/m16 * signed immed16
+: imull<-#32 [32] 69 c, ;       \ reg32 = r/m32 * signed immed32
+: inal#8     e4 c, ;
+: inax#8     [16] e5 c, ;
+: ineax#8    [32] e5 c, ;
+: inaldx     ec c, ;
+: inaxdx     [16] ed c, ;
+: ineaxdx    [32] ed c, ;
+: incb       fe c, /0 ;
+: incw       [16] ff c, /0 ;
+: incl       [32] ff c, /0 ;
+: incw<-     [16] 8/ 40 + ;   \ as ax incw<-
+: incl<-     [32] 8/ 40 + ;   \ as eax incl<-
+: int3       cc c, ;
+: int#8      0cd c, ;
+: into       ce c, ;
+: iret       cf c, ;
+: jccb       70 + c, ;       \ as ?be jccb <disp8> c,
+: jccl       0f c, 80 + c, ; \ as ?be jccl <disp32> l,
+: jecxz      e3 c, ;
+: jmpb       eb c, ;    \ 8-bit displacement
+: jmpl       e9 c, ;    \ 32-bit displacement
+: jmpi       ff c, /4 ; \ absolute indirect
+: lahf       9f c, ;
+: lds        c5 c, ; \ load far pointer into ds:reg from mem
+: lss        0f c, b2 c, ;
+: les        c4 c, ;
+: lfs        0f c, b4 c, ;
+: lgs        0f c, b5 c, ;
+: leaw       [16] 8d c, ;
+: leal       [32] 8d c, ;
+: leave      c9 c, ;
+: loop       e2 c, ; \ loop until ecx == 0, 8-bit signed displacement
+: loope      e1 c, ; \ loop until ecx == 0 or zf = 0
+: loopz      e1 c, ;
+: loopne     e0 c, ; \ loop until ecx == 0 or zf = 1
+: loopnz     e0 c, ;
+: movb->      88 c, ;
+: movw->      [16] 89 c, ;
+: movl->      [32] 89 c, ;
+: movb<-      8a c, ;
+: movw<-      [16] 8b c, ;
+: movl<-      [32] 8b c, ;
+: movseg->    [16] 8c c, ; \ as movseg<- ss ,[eax] or movseg<- ss ,ax
+: movseg<-    [16] 8e c, ;
+: moval<-d32  a0 c, ;      \ as fs: moval<-d32 0 ,
+: movax<-d32  [16] a1 c, ;
+: moveax<-d32 [32] a1 c, ;
+: moval->d32  a2 c, ;
+: movax->d32  [16] a3 c, ;
+: moveax->d32 [32] a3 c, ;
+: movb<-#8    8/ b0 + c, ; \ as al movb<-#8 7f c,
+: movw<-#16   8/ [16] b8 + c, ;
+: movl<-#32   8/ [32] b8 + c, ;
+: movb#8      c6 c, /0 ; \ as movb#8 ,[esi] 7f c,
+: movw#16     [16] c7 c, /0 ;
+: movl#32     [32] c7 c, /0 ;
+: movsxw<-b    [16] 0f c, be c, ; \ as movsx ax ,al
+: movsxl<-b    [32] 0f c, be c, ; \ as movsx eax ,al
+: movsxl<-w    0f c, bf c, ;
+: movzxw<-b    [16] 0f c, b6 c, ;
+: movzxl<-b    [32] 0f c, b6 c, ;
+: movzxl<-w    0f c, b7 c, ;
+: mulb   f6 c, /4 ;
+: mulw   [16] f7 c, /4 ;
+: mull   [32] f7 c, /4 ;
+: negb   f6 c, /3 ;
+: negw   [16] f7 c, /3 ;
+: negl   [32] f7 c, /3 ;
+: nop 90 c, ;
+: notb   f6 c, /2 ;
+: notw   [16] f7 c, /2 ;
+: notl   [32] f7 c, /2 ;
+: outal#8  e6 c, ;
+: outax#8  [16] e7 c, ;
+: outeax#8 [32] e7 c, ;
+: outdxal  ee c, ;
+: outdxax  [16] ef c, ;
+: outdxeax [32] ef c, ;
+: pause f3 c, 90 c, ; \ rep nop, how cute
+: popw [16] 8f c, /0 ; \ as popw ,[esi]
+: popl [32] 8f c, /0 ; \ as popl ,[esi]
+: popw<- [16] 8/ 58 + c, ; \ as ax popw<-
+: popl<- [32] 8/ 58 + c, ; \ as eax popl<-
+: popds 1f c, ;
+: popes 07 c, ;
+: popss 17 c, ;
+: popfs 0f c, a1 c, ;
+: popgs 0f c, a9 c, ;
+: popaw [16] 61 c, ;
+: popal [32] 61 c, ;
+: popfw [16] 9d c, ;
+: popfl [32] 9d c, ;
+: pushw [16] ff c, /6 ; \ as pushw ,[esi]
+: pushl [32] ff c, /6 ; \ as pushl ,[esi]
+: pushw<- [16] 8/ 50 + c, ; \ as ax pushw<-
+: pushl<- [32] 8/ 50 + c, ; \ as eax pushl<-
+: push#8 6a c, ;
+: push#16 [16] 68 c, ;
+: push#32 [32] 68 c, ;
+: pushcs 0e c, ;
+: pushss 16 c, ;
+: pushds 1e c, ;
+: pushes 06 c, ;
+: pushfs 0f c, a0 c, ;
+: pushgs 0f c, a8 c, ;
+: pushaw [16] 60 c, ;
+: pushal [32] 60 c, ;
+: pushfw [16] 9c c, ;
+: pushfl [32] 9c c, ;
+: rdtsc   0f c, 31 c, ; \ reads into edx:eax
+: rep   f3 c, ;
+: repe  f3 c, ;
+: repne f2 c, ;
+\ for use with rep
+: insb    6c c, ;
+: insw    [16] 6d c, ;
+: insl    [32] 6d c, ;
+: movsb   a4 c, ;
+: movsw   [16] a5 c, ;
+: movsl   [32] a5 c, ;
+: outsb   6e c, ;
+: outsw   [16] 6f c, ;
+: outsl   [32] 6f c, ;
+: lodsb   ac c, ;
+: lodsw   [16] ad c, ;
+: lodsl   [32] ad c, ;
+: stosb   aa c, ;
+: stosw   [16] ab c, ;
+: stosl   [32] ab c, ;
+\ for use with repe and repne
+: cmpsb   a6 c, ;
+: cmpsw   [16] a7 c, ;
+: cmpsl   [32]  a7 c, ;
+: scasb   ae c, ;
+: scasw   [16] af c, ;
+: scasl   [32] af c, ;
+: ret       c3 c, ;
+: retfar    cb c, ;
+: ret#16    c2 c, ;
+: retfar#16 ca c, ;
+: sahf 9e c, ;
+: setbcc     0f c, 90 + c, /0 ; \ as ?z setbcc ,al or ?nae setbcc ,[esi]
+: shldw#8->  [16] 0f c, a4 c, ;
+: shldwcl->  [16] 0f c, a5 c, ;
+: shldl#8->  [32] 0f c, a4 c, ; \ as shldl#8-> eax ,[esi] 3 c,
+: shldlcl->  [32] 0f c, a5 c, ; \ as shldlcl-> eax ,[esi] 3 c,
+: shrdw#8->  [16] 0f c, ac c, ;
+: shrdwcl->  [16] 0f c, ad c, ;
+: shrdl#8->  [32] 0f c, ac c, ;
+: shrdlcl->  [32] 0f c, ad c, ;
+: stc        f9 c, ;
+: std        fd c, ;
+: sti        fb c, ;
+: sysenter   0f c, 34 c, ;
+: testal#8   a8 c, ;
+: testax#16  [16] a9 c, ;
+: testeax#32 [32] a9 c, ;
+: testb#8    f6 c, /0 ;
+: testw#16   [16] f7 c, /0 ;
+: testl#32   [32] f7 c, /0 ;
+: testb      84 c, ;
+: testw      [16] 85 c, ;
+: testl      [32] 85 c, ;
+: ud2        0f c, 0b c, ;
+: verr       0f c, 00 c, /4 ;
+: verw       0f c, 00 c, /5 ;
+: wait       9b c, ;
+: xaddb->    0f c, c0 c, ;
+: xaddw->    [16] 0f c, c1 c, ;
+: xaddl->    [32] 0f c, c1 c, ;
+: xchgax<-   8/ [16] 90 + c, ; \ as si xchgax<-
+: xchgeax<-  8/ [32] 90 + c, ; \ as esi xchgeax<-
+: xchgb      86 c, ;
+: xchgw      [16] 87 c, ;
+: xchgl      [32] 87 c, ;
+: xlatb      d7 c, ; \ always ds:[ebx+unsigned al] -> al
+\ ------ privileged operations ------
+: arpl       63 c, ;
+: clts       0f c, 06 c, ;
+: invd       0f c, 08 c, ;
+: invlpg     0f c, 01 c, /7 ;
+: larw       [16] 0f c, 02 c, ;
+: larl       [32] 0f c, 02 c, ;
+: lgdt       0f c, 01 c, /2 ;
+: lidt       0f c, 01 c, /3 ;
+: lldt       0f c, 00 c, /2 ;
+: lmsw       0f c, 01 c, /6 ; \ 286 obsolete
+: lslw       [16] 0f c, 03 c, ;
+: lsll       [32] 0f c, 03 c, ;
+: ltr        0f c, 00 c, /3 ;
+: rdmsr      0f c, 32 c, ;
+: rdpmc      0f c, 33 c, ;
+: sgdt       0f c, 01 c, /0 ;
+: sidt       0f c, 01 c, /1 ;
+: sldt       0f c, 00 c, /0 ;
+: smsw       0f c, 01 c, /4 ; \ 286 obsolete
+: str        0f c, 00 c, /1 ;
+: sysexit    0f c, 35 c, ;
+: wbinvd     0f c, 09 c, ;
+: wrmsr      0f c, 30 c, ;
+\ ------ floating-point operations ------
+: f2xm1      d9 c, d0 c, ; \ inherent
+: fabs       d9 c, e1 c, ;
+: fadd32     d8 c, /0 ; \ st(0) += m32f mem only
+: fadd64     dc c, /0 ; \ st(0) += m64f mem only
+: fadd<-     d8 c, /0 ; \ st(0) += st(i) reg only
+: fadd->     dc c, /0 ; \ st(i) += st(0) reg only
+: faddp->    de c, /0 ; \ st(i) += st(0), pop
+: faddp      de c, c1 c, ; \ st(1) += st(0), pop
+: fiaddl     da c, /0 ; \ st(0) += int32 in mem
+: fiaddw     de c, /0 ; \ st(0) += int16 in mem
+: fbld       df c, /4 ;
+: fbstp      df c, /6 ;
+: fchs       d9 c, e0 c, ;
+: fclex      9b c, db c, e2 c, ;
+: fnclex     db c, e2 c, ;
+\ these opcodes use eflags and cannot take memory operands.
+: fcmovb<-   da c, /0 ;
+: fcmove<-   da c, /1 ; \ move if equal (zf = 1)
+: fcmovbe<-  da c, /2 ;
+: fcmovu<-   da c, /3 ; \ move if unordered (pf = 1)
+: fcmovnb<-  db c, /0 ;
+: fcmovne<-  db c, /1 ;
+: fcmovnbe<- db c, /2 ;
+: fcmovnu<-  db c, /3 ;
+: fcom32     d8 c, /2 ; \ st(0) - m32f
+: fcom64     dc c, /2 ; \ st(0) - m64f
+: fcom<-     d8 c, /2 ; \ st(0) - st(i)
+: fcom       d8 c, d1 c, ; \ st(0) - st(1)
+: fcomp32    d8 c, /3 ; \ st(0) - m32f, pop
+: fcomp64    dc c, /3 ; \ st(0) - m64f, pop
+: fcomp<-    d8 c, /3 ; \ st(0) - st(i), pop
+: fcomp      d8 c, d9 c, ; \ st(0) - st(1), pop
+: fcompp     de c, d9 c, ; \ st(0) - st(1), pop pop
+: fcomi      db c, /6 ; \ st(0) - st(i) and set eflags (no memory operands!)
+: fcomip     df c, /6 ;
+  \ st(0) - st(i), set eflags, and pop (no memory operands)
+: fucomi     db c, /5 ; \ st(0) - st(i), and set eflags
+: fucomip    df c, /5 ; \ st(0) - st(i), set eflags, and pop
+: fcos       d9 c, ff c, ; \ st(0) = cos(st(0))
+: fdecstp    d9 c, f6 c, ; \ goes in push direction
+: fdiv32     d8 c, /6 ; \ st(0) /= m32f
+: fdiv64     dc c, /6 ; \ st(0) /= m64f
+: fdiv<-     d8 c, /6 ; \ st(0) /= st(i)
+: fdiv->     dc c, /7 ; \ st(i) /= st(0)
+: fdivp->    de c, /7 ; \ st(i) /= st(0), pop
+: fdivp      de c, f9 ; \ st(1) /= st(0), pop
+: fidivl     da c, /6 ; \ st(0) /= int32 in mem
+: fidivw     de c, /6 ; \ st(0) /= int16 in mem
+: fdivr32    d8 c, /7 ; \ memory operands only
+: fdivr64    dc c, /7 ;
+: fdivr<-    d8 c, /7 ; \ st(i), no memory operands
+: fdivr->    dc c, /6 ;
+: fdivrp->   de c, /6 ; \ st(i), no memory operands
+: fdivrp     de c, f1 c, ; \ no operands at all
+: fidivrl    da c, /7 ; \ memory operands only
+: fidivrw    de c, /7 ; \ memory operands only
+: ffree<-  dd c, 8/ c0 + c, ; \ as st(0) <-ffree
+: ficomw   de c, /2 ; \ memory operands only
+: ficoml   da c, /2 ;
+: ficompw  de c, /3 ;
+: ficompl  da c, /3 ;
+: fildw    df c, /0 ; \  memory operands only
+: fildl    db c, /0 ;
+: fildq    df c, /5 ;
+: fincstp  d9 c, f7 c, ;
+: finit    9b c, db c, e3 c, ;
+: fninit   db c, e3 c, ;
+: fistw    df c, /2 ;
+: fistl    db c, /2 ;
+: fistpw   df c, /3 ;
+: fistpl   db c, /3 ;
+: fistpq   df c, /7 ;
+: fld32    d9 c, /0 ; \ memory only
+: fld64    dd c, /0 ;
+: fld80    db c, /5 ;
+: fldst    d9 c, /0 ; \ st(i) operand only
+: fld1     d9 c, e8 c, ;
+: fldl2t   d9 c, e9 c, ;
+: fldl2e   d9 c, ea c, ;
+: fldpi    d9 c, eb c, ;
+: fldlg2   d9 c, ec c, ;
+: fldln2   d9 c, ed c, ;
+: fldz     d9 c, ee c, ;
+: fldcw    d9 c, /5 ; \ memory operand only
+: fldenv   d9 c, /4 ; \ memory operand only
+: fmul32   d8 c, /1 ; \ memory operands only
+: fmul64   dc c, /1 ;
+: fmul<-   d8 c, /1 ; \ st(i) only
+: fmul->   dc c, /1 ;
+: fmulp->  de c, /1 ;
+: fmulp    de c, c9 c, ;
+: fimull   da c, /1 ; \ memory only
+: fimulw   de c, /1 ; \ memory only
+: fnop     d9 c, d0 c, ;
+: fpatan   d9 c, f3 c, ; \ y x fpatan is same as atan2 in c
+: fprem    d9 c, f8 c, ; \ y x fprem is actual(x/y) - calculated(x/y)
+: fprem1   d9 c, f5 c, ; \ y x fprem1 
+: fptan    d9 c, f2 c, ; \ x fptan produces tan(x) 1
+: fprndint d9 c, fc c, ;
+: frstor   dd c, /4 ; \ memory operands only
+: fsave    9b c, dd c, /6 ;
+: fnsave   dd c, /6 ;
+: fscale   d9 c, fd c, ;
+: fsin     d9 c, fe c, ;
+: fsincos  d9 c, fb c, ;
+: fsqrt    d9 c, fa c, ;
+: fst32    d9 c, /2 ;
+: fst64    dd c, /2 ; \ memory operands only
+: fstst    dd c, /2 ; \ st(i) operand only
+: fstcw    9b c, d9 c, /7 ;
+: fnstcw   d9 c, /7 ;
+: fstenv   9b c, d9 c, /6 ;
+: fnstenv  d9 c, /6 ;
+: fstsw    9b c, dd c, /7 ;
+: fstswax  9b c, df c, e0 c, ;
+: fnstsw   dd c, /7 ;
+: fnstswax df c, e0 c, ;
+: fsub32   d8 c, /4 ; \ memory only
+: fsub64   dc c, /4 ;
+: fsub<-   d8 c, /4 ; \ st(i) only
+: fsub->   dc c, /5 ;
+: fsubp->  de c, /5 ;
+: fsubp    de c, e9 c, ;
+: fisubl   da c, /4 ;
+: fisubw   de c, /4 ;
+: fsubr32  d8 c, /5 ;
+: fsibr64  dc c, /5 ;
+: fsubr<-  d8 c, /5 ;
+: fsubr->  dc c, /4 ;
+: fsubrp-> de c, /4 ;
+: fsubrp   de c, e1 c, ;
+: fisubrl  da c, /5 ;
+: fisubrw  de c, /5 ;
+: ftst     d9 c, e4 c, ;
+: fucomst  dd c, /4 ; \ st(i) only
+: fucom    dd c, e1 c, ;
+: fucompst dd c, /5 ; \ st(i) only
+: fucomp   dd c, e9 c, ;
+: fucompp  da c, e9 c, ;
+: fwait    9b c, ;
+: fxam     d9 c, e5 c, ;
+: fxchst   d9 c, /1 ; \ st(i) only
+: fxch     d9 c, c9 c, ;
+: fxtract  d9 c, f4 c, ;
+: fyl2x    d9 c, f1 c, ;
+: fyl2xp1  d9 c, f9 c, ;
+\ ------ fxsave and fxrestore ------
+: fxrstor  0f c, ae c, /1 ;
+: fxsave   0f c, ae c, /0 ;
+\ ------ mmx operations ------
+: emms       0f c, 77 c, ;
+: movd<-     0f c, 6e c, ; \ as movd<- mmx0 ,eax (zero-extends)
+: movd->     0f c, 7e c, ;
+: movq<-     0f c, 6f c, ;
+: movq->     0f c, 7f c, ;
+: packsswb<- 0f c, 63 c, ;
+: packssdw<- 0f c, 6b c, ;
+: packuswb<- 0f c, 67 c, ;
+: paddb<-    0f c, fc c, ;
+: paddw<-    0f c, fd c, ;
+: paddd<-    0f c, fe c, ;
+: paddq<-    0f c, d4 c, ;
+: paddsb<-   0f c, ec c, ;
+: paddsw<-   0f c, ed c, ;
+: paddusb<-  0f c, dc c, ;
+: paddusw<-  0f c, dd c, ;
+: pand<-     0f c, db c, ;
+: pandn<-    0f c, df c, ;
+: pcmpeqb<-  0f c, 74 c, ;
+: pcmpeqw<-  0f c, 75 c, ;
+: pcmpeqd<-  0f c, 76 c, ;
+: pcmpgtb<-  0f c, 64 c, ;
+: pcmpgtw<-  0f c, 65 c, ;
+: pcmpgtd<-  0f c, 66 c, ;
+: pmaddwd<-  0f c, f5 c, ;
+: pmulhw<-   0f c, e5 c, ;
+: pmullw<-   0f c, d5 c, ;
+: pmuludq<-  0f c, f4 c, ;
+: psadbw<-   0f c, f6 c, ;
+: pshufw#8<- 0f c, 70 c, ;
+: psllw<-    0f c, f1 c, ;
+: pslld<-    0f c, f2 c, ;
+: psllq<-    0f c, f3 c, ;
+: psllw#8<-  0f c, 71 c, /6 ;
+: pslld#8<-  0f c, 72 c, /6 ;
+: psllq#8<-  0f c, 73 c, /6 ;
+: psraw<-    0f c, e1 c, ;
+: psrad<-    0f c, e2 c, ;
+: psraw#8<-  0f c, 71 c, /4 ;
+: psrad#8<-  0f c, 72 c, /4 ;
+: psrlw<-    0f c, d1 c, ;
+: psrld<-    0f c, d2 c, ;
+: psrlq<-    0f c, d3 c, ;
+: psrlw#8<-  0f c, 71 c, /2 ;
+: psrld#8<-  0f c, 72 c, /2 ;
+: psrlq#8<-  0f c, 73 c, /2 ;
+: psubb<-    0f c, f8 c, ;
+: psubw<-    0f c, f9 c, ;
+: psubd<-    0f c, fa c, ;
+: psubq<-    0f c, fb c, ;
+: psubsb<-   0f c, e8 c, ;
+: psubsw<-   0f c, e9 c, ;
+: psubusb<-  0f c, d8 c, ;
+: psubusw<-  0f c, d9 c, ;
+: punpckhbw<- 0f c, 68 c, ;
+: punpckhwd<- 0f c, 69 c, ;
+: punpckhdq<- 0f c, 6a c, ;
+: punpcklbw<- 0f c, 60 c, ;
+: punpcklwd<- 0f c, 61 c, ;
+: punpckldq<- 0f c, 62 c, ;
+: por<-      0f c, eb c, ;
+: pxor<-     0f c, ef c, ;
+\ ------ sse extensions to mmx ------
+: movntq->   0f c, e7 c, ; \ as movntq-> mmx0 ,[edi]
+: pavgb<-    0f c, e0 c, ;
+: pavgw<-    0f c, e3 c, ;
+: pextrw#8<- 0f c, c5 c, ; \ as pextrw<-#8 ax ,mmx0 3 c,
+: pinsrw#8<- 0f c, c4 c, ; \ as pinsrw<-#8 mmx0 ,ax 2 c,
+: pmaxsw<-   0f c, ee c, ;
+: pmaxub<-   0f c, de c, ;
+: pminsw<-   0f c, ea c, ;
+: pminub<-   0f c, da c, ;
+: pmovmskb<- 0f c, d7 c, ; \ as pmovmskb<- eax ,mmx0
+: pmulhuw<-  0f c, e4 c, ;
+: psadbw<-   0f c, f8 c, ;
+: pshufw#8<- 0f c, 70 c, ;
+\ ------ streaming simd 2 mmx operations in xmm registers ------
+: movd2<-     66 c, 0f c, 6e c, ; \ as movd2<- xmm0 ,eax (zero-extends)
+: movd2->     66 c, 0f c, 7e c, ;
+: movdqa<-    66 c, 0f c, 6f c, ;
+: movdqa->    66 c, 0f c, 7f c, ;
+: movdqu<-    f3 c, 0f c, 6f c, ;
+: movdqu->    f3 c, 0f c, 7f c, ;
+: movdq2q<-   f2 c, 0f c, d6 c, ; \ as movdq2q<- mmx0 ,xmm0
+: movntdq->   66 c, 0f c, e7 c, ;
+: movnti->    0f c, c3 c, ;
+: movq2<-     f3 c, 0f c, 7e c, ; \ as movq2<- xmm0 ,xmm1
+: movq2->     66 c, 0f c, d6 c, ;
+: movq2dq<-   f3 c, 0f c, d6 c, ; \ as movq2dq<- xmm0 ,mmx0
+: packsswb2<- 66 c, 0f c, 63 c, ;
+: packssdw2<- 66 c, 0f c, 6b c, ;
+: packuswb2<- 66 c, 0f c, 67 c, ;
+: paddb2<-    66 c, 0f c, fc c, ;
+: paddw2<-    66 c, 0f c, fd c, ;
+: paddd2<-    66 c, 0f c, fe c, ;
+: paddq2<-    66 c, 0f c, d4 c, ;
+: paddsb2<-   66 c, 0f c, ec c, ;
+: paddsw2<-   66 c, 0f c, ed c, ;
+: paddusb2<-  66 c, 0f c, dc c, ;
+: paddusw2<-  66 c, 0f c, dd c, ;
+: pand2<-     66 c, 0f c, db c, ;
+: pandn2<-    66 c, 0f c, df c, ;
+: pavgb2<-    66 c, 0f c, e0 c, ;
+: pavgw2<-    66 c, 0f c, e3 c, ;
+: pcmpeqb2<-  66 c, 0f c, 74 c, ;
+: pcmpeqw2<-  66 c, 0f c, 75 c, ;
+: pcmpeqd2<-  66 c, 0f c, 76 c, ;
+: pcmpgtb2<-  66 c, 0f c, 64 c, ;
+: pcmpgtw2<-  66 c, 0f c, 65 c, ;
+: pcmpgtd2<-  66 c, 0f c, 66 c, ;
+: pmaddwd2<-  66 c, 0f c, f5 c, ;
+: pmaxsw2<-   66 c, 0f c, ee c, ;
+: pmaxub2<-   66 c, 0f c, de c, ;
+: pminsw2<-   66 c, 0f c, ea c, ;
+: pminub2<-   66 c, 0f c, da c, ;
+: pmovmskb2<- 66 c, 0f c, d7 c, ; \ as pmovmskb2<- eax ,mmx0
+: pmulhuw2<-  66 c, 0f c, e4 c, ;
+: pmulhw2<-   66 c, 0f c, e5 c, ;
+: pmullw2<-   66 c, 0f c, d5 c, ;
+: pmuludq2<-  66 c, 0f c, f4 c, ;
+: por2<-      66 c, 0f c, eb c, ;
+: psadbw2<-   66 c, 0f c, f8 c, ;
+: pshufd#8<-  66 c, 0f c, 70 c, ; \ as pshufd<- xmm1 ,xmm2 3 c,
+: pshufhw#8<- f3 c, 0f c, 70 c, ; \ as pshufhw<- xmm1 ,xmm2 3 c,
+: pshuflw#8<- f2 c, 0f c, 70 c, ; \ as pshuflw<- xmm1 ,xmm2 3 c,
+: psllw2<-    66 c, 0f c, f1 c, ;
+: pslld2<-    66 c, 0f c, f2 c, ;
+: psllq2<-    66 c, 0f c, f3 c, ;
+: psllw2#8<-  66 c, 0f c, 71 c, /6 ;
+: pslld2#8<-  66 c, 0f c, 72 c, /6 ;
+: psllq2#8<-  66 c, 0f c, 73 c, /6 ;
+: pslldq#8<-  66 c, 0f c, 73 c, /7 ; \ as pslldq#8<- ,xmm2 3 c,
+: psraw2<-    66 c, 0f c, e1 c, ;
+: psrad2<-    66 c, 0f c, e2 c, ;
+: psraw2#8<-  66 c, 0f c, 71 c, /4 ;
+: psrad2#8<-  66 c, 0f c, 72 c, /4 ;
+: psrlw2<-    66 c, 0f c, d1 c, ;
+: psrld2<-    66 c, 0f c, d2 c, ;
+: psrlq2<-    66 c, 0f c, d3 c, ;
+: psrlw2#8<-  66 c, 0f c, 71 c, /2 ;
+: psrld2#8<-  66 c, 0f c, 72 c, /2 ;
+: psrlq2#8<-  66 c, 0f c, 73 c, /2 ;
+: psrldq#8<-  66 c, 0f c, 73 c, /3 ;
+: psubb2<-    66 c, 0f c, f8 c, ;
+: psubw2<-    66 c, 0f c, f9 c, ;
+: psubd2<-    66 c, 0f c, fa c, ;
+: psubq2<-    66 c, 0f c, fb c, ;
+: psubsb2<-   66 c, 0f c, e8 c, ;
+: psubsw2<-   66 c, 0f c, e9 c, ;
+: psubusb2<-  66 c, 0f c, d8 c, ;
+: psubusw2<-  66 c, 0f c, d9 c, ;
+: punpckhbw2<- 66 c, 0f c, 68 c, ;
+: punpckhwd2<- 66 c, 0f c, 69 c, ;
+: punpckhdq2<- 66 c, 0f c, 6a c, ;
+: punpckhqdq<- 66 c, 0f c, 6d c, ;
+: punpcklbw2<- 66 c, 0f c, 60 c, ;
+: punpcklwd2<- 66 c, 0f c, 61 c, ;
+: punpckldq2<- 66 c, 0f c, 62 c, ;
+: punpcklqdq<- 66 c, 0f c, 6c c, ;
+: pxor2<-     66 c, 0f c, ef c, ;
+\ ------ streaming simd 1 operations -----
+: addps<-    0f c, 58 c, ;
+: addss<-    f3 c, 0f c, 58 c, ;
+: andps<-    0f c, 54 c, ;
+: andnps<-   0f c, 55 c, ;
+: cmpps#8<-  0f c, c2 c, ;
+: cmpss#8<-  f3 c, 0f c, c2 c, ;
+: sse-eq 0 c, ;   : sse-lt 1 c, ;   : sse-le 2 c, ;   : sse-unord 3 c, ;
+: sse-neq 4 c, ;   : sse-nlt 5 c, ;   : sse-nle 6 c, ;   : sse-ord 7 c, ;
+: comiss<-   0f c, 2f c, ;
+: divps<-    0f c, 5e c, ;
+: divss<-    f3 c, 0f c, 5e c, ;
+: maxps<-    0f c, 5f c, ;
+: maxss<-    f3 c, 0f c, 5f c, ;
+: minps<-    0f c, 5d c, ;
+: minss<-    f3 c, 0f c, 5d c, ;
+: movaps<-   0f c, 28 c, ; \ memory only
+: movaps->   0f c, 29 c, ;
+: movhps<-   0f c, 16 c, ; \ low quadword remains unchanged
+: movhps->   0f c, 17 c, ;
+: movhlps<-  0f c, 16 c, ; \ reversed!!!
+: movlps<-   0f c, 12 c, ;
+: movlps->   0f c, 13 c, ;
+: movlhps<-  0f c, 12 c, ; \ reversed!!! registers only, as movlhps<- xmm1 ,xmm2
+: movmskps<- 0f c, 50 c, ; \ as movmskps<- eax ,xmm0 (generates a sign mask)
+: movntps->  0f c, 2b c, ; \ as movntps-> xmm0 ,[esi]
+: movups<-   0f c, 10 c, ;
+: movups->   0f c, 11 c, ;
+: movss<-    f3 c, 0f c, 10 c, ;
+: movss->    f3 c, 0f c, 11 c, ;
+: mulps<-    0f c, 59 c, ;
+: mulss<-    f3 c, 0f c, 59 c, ;
+: orps<-     0f c, 56 c, ;
+: ldmxcsr    0f c, ae c, /2 ;
+: rcpps<-    0f c, 53 c, ;
+: rcpss<-    f3 c, 0f c, 53 c, ;
+: rsqrtps<-  0f c, 52 c, ;
+: rsqrtss<-  f3 c, 0f c, 52 c, ;
+: shufps#8<- 0f c, c6 c, ;
+: sqrtps<-   0f c, 51 c, ;
+: sqrtss<-   f3 c, 0f c, 51 c, ;
+: stmxcsr    0f c, ae c, /3 ;
+: subps<-    0f c, 5c c, ;
+: subss<-    f3 c, 0f c, 5c c, ;
+: ucomiss<-  0f c, 2e c, ;
+: unpckhps<- 0f c, 15 c, ;
+: unpcklps<- 0f c, 14 c, ;
+: xorps<-    0f c, 57 c, ;
+\ ------ streaming simd 2 double-precision operations ------
+: addpd<-    66 c, 0f c, 58 c, ;
+: addsd<-    f2 c, 0f c, 58 c, ;
+: andpd<-    66 c, 0f c, 54 c, ;
+: andnpd<-   66 c, 0f c, 55 c, ;
+: cmppd#8<-  66 c, 0f c, c2 c, ;
+: cmpsd#8<-  f2 c, 0f c, c2 c, ;
+: comisd<-   66 c, 0f c, 2f c, ;
+: divpd<-    66 c, 0f c, 5e c, ;
+: divsd<-    f2 c, 0f c, 5e c, ;
+: maxpd<-    66 c, 0f c, 5f c, ;
+: maxsd<-    f2 c, 0f c, 5f c, ;
+: minpd<-    66 c, 0f c, 5d c, ;
+: minsd<-    f2 c, 0f c, 5d c, ;
+: movapd<-   66 c, 0f c, 28 c, ;
+: movapd->   66 c, 0f c, 29 c, ;
+: movhpd<-   66 c, 0f c, 16 c, ; \ as movhpd<- xmm0 ,[edi]
+: movhpd->   66 c, 0f c, 17 c, ;
+: movlpd<-   66 c, 0f c, 12 c, ;
+: movlpd->   66 c, 0f c, 13 c, ;
+: movmskpd<- 66 c, 0f c, 50 c, ; \ as movmskpd<- eax ,xmm0
+: movntpd->  66 c, 0f c, 2b c, ;
+: movsd<-    f2 c, 0f c, 10 c, ;
+: movsd->    f2 c, 0f c, 11 c, ;
+: movupd<-   66 c, 0f c, 10 c, ;
+: movupd->   66 c, 0f c, 11 c, ;
+: mulpd<-    66 c, 0f c, 59 c, ;
+: mulsd<-    f2 c, 0f c, 59 c, ;
+: orpd<-     66 c, 0f c, 56 c, ;
+: shufpd#8<- 66 c, 0f c, c6 c, ;
+: sqrtpd<-   66 c, 0f c, 51 c, ;
+: sqrtsd<-   f2 c, 0f c, 51 c, ;
+: subpd<-    66 c, 0f c, 5c c, ;
+: subsd<-    f2 c, 0f c, 5c c, ;
+: ucomisd<-  66 c, 0f c, 2e c, ;
+: unpckhpd<- 66 c, 0f c, 15 c, ;
+: unpcklpd<- 66 c, 0f c, 14 c, ;
+: xorpd<-    66 c, 0f c, 57 c, ;
+\ ------ sse conversion operations ------
+\  f64 = a 64-bit float, f32 = a 32-bit float, i32 = a 32-bit signed int.
+: cvtpi2ps<-  0f c, 2a c, ; \ convert two i32s in mmx/mem to f32s in xmm
+: cvtsi2ss<-  f3 c, 0f c, 2a c, ; \ convert one i32 from eax/ebx/mem to f32 in xmmlo
+: cvtps2pi<-  0f c, 2d c, ; \ convert two f32s in xmm/mem to i32s in mmx
+: cvtss2si<-  f3 c, 0f c, 2d c, ; \ convert one f32 from xmm/mem to i32 in eax/ebx/etc.
+\ ------ streaming simd 2 conversion operations ------
+: cvtdq2pd<-  f3 c, 0f c, e6 c, ; \ convert two i32s in xmm/mem to f64s in xmm
+: cvtdq2ps<-  0f c, 5b c, ;       \ convert four i32s in xmm/mem to f32s in xmm
+: cvtpd2dq<-  f2 c, 0f c, e6 c, ; \ convert two f64s in xmm/mem to i32s in xmm
+: cvtpd2pi<-  66 c, 0f c, 2d c, ; \ convert two f64s in xmm/mem to i32s in mmx
+: cvtpd2ps<-  66 c, 0f c, 5a c, ; \ convert two f64s in xmm/mem to f32s in xmm
+: cvtpi2pd<-  66 c, 0f c, 2a c, ; \ convert two i32s in mmx/mem to f64s in xmm
+: cvtps2dq<-  66 c, 0f c, 5b c, ; \ convert four f32s in xmm/mem to i32s in xmm
+: cvtps2pd<-  0f c, 5a c, ;       \ convert two f32s in xmm/mem to f64s in xmm
+: cvtsd2si<-  f2 c, 0f c, 2d c, ; \ convert one f64 to i32 in eax/ebx/etc.
+: cvtsd2ss<-  f2 c, 0f c, 5a c, ; \ convert one f64 to i32 in xmm.
+: cvtsi2sd<-  f2 c, 0f c, 2a c, ;
+  \ convert one i32 from eax/ebx/mem to f64 in xmmlo
+: cvtss2sd<-  f3 c, 0f c, 5a c, ;
+  \ convert one f32 from xmm/mem to f64 in xmmlo
+: cvttpd2pi<- 66 c, 0f c, 2c c, ;
+  \ truncate two f64s from xmm/mem to i32s in mmx
+: cvttpd2dq<- 66 c, 0f c, e6 c, ;
+  \ truncate two f64s from xmm/mem to i32s in xmmlo
+: cvttps2pi<- 0f c, 2c c, ;
+  \ truncate two f32s from xmm/mem to i32s in mmx
+: cvttps2dq<- f3 c, 0f c, 5b c, ;
+  \ truncate four f32s from xmm/mem to i32s in xmm
+: cvttsd2si<- f2 c, 0f c, 2c c, ;
+  \ truncate one f64 from xmm/mem to an i32 in eax/ebx/etc.
+: cvttss2si<- f3 c, 0f c, 2c c, ;
+  \ truncate one f32 from xmm/mem to an i32 in eax/ebx/etc.
+\ ------ streaming simd 2 memory operations ------
+: clflush    0f c, ae c, /7 ; \ requires mem operand
+: lfence     0f c, ae c, /5 ,eax ; \ inherent
+: mfence     0f c, ae c, /6 ,eax ;
+: sfence     0f c, ae c, /7 ,eax ;
+: prefetch0   0f c, 18 c, /1 ;
+: prefetch1   0f c, 18 c, /2 ;
+: prefetch2   0f c, 18 c, /3 ;
+: prefetchnta 0f c, 18 c, /0 ;
+\ ----- loop stuff -----
+: *begin ( -- lbl ) bhere ;
+: *again ( lbl -- ) bhere - 1- c, ;
+: *ahead ( -- fixup ) bhere 0 c, ;
+: *then ( fixup -- ) bhere over 1+ - swap c! ;

@@ -1,0 +1,18 @@
+ebp pushl<-
+movl<- ebp ,esp
+movl<- eax ,d8[ebp] 8 c,
+movl<- ecx ,d8[ebp] 0c c,
+*begin
+  notb ,[eax]
+  add alu.l#8 ,eax 1 c,
+  sub alu.l#8 ,ecx 1 c,
+  ?ne jccb *again
+ebp popl<-
+ret
+
+variable x
+20 newbytearray x !
+: dumpall 0 x @ bytearraysize x @ dumparray ;
+dumpall
+x @ crash32
+dumpall
