@@ -9,19 +9,19 @@ namespace SimpleForth
 {
     public class Forth
     {
-        private ForthStack<object> dStack;
-        private ForthStack<object> aStack;
+        private ForthStack<object?> dStack;
+        private ForthStack<object?> aStack;
         private ForthStack<int> rStack;
 
-        private ForthStack<Vocabulary> searchOrder;
+        private ForthStack<Vocabulary?> searchOrder;
         private Vocabulary definitions;
 
-        private ForthDictionaryEntry SearchVocabularies(string name)
+        private ForthDictionaryEntry? SearchVocabularies(string name)
         {
             int iEnd = searchOrder.Depth;
             for (int i = 0; i < iEnd; ++i)
             {
-                Dictionary<string, ForthDictionaryEntry> dict = searchOrder[i].Dict;
+                Dictionary<string, ForthDictionaryEntry> dict = searchOrder[i].AssertNotNull().Dict;
                 if (dict.ContainsKey(name)) return dict[name];
             }
             return null;
@@ -45,13 +45,13 @@ namespace SimpleForth
 
         private void LoadResourceStream(string name)
         {
-            using (Stream s = typeof(Forth).Assembly.GetManifestResourceStream(name))
+            using (Stream s = typeof(Forth).Assembly.GetManifestResourceStream(name).AssertNotNull())
             {
                 StreamReader sr = new StreamReader(s);
                 int lineNumber = 1;
                 while (true)
                 {
-                    string line = sr.ReadLine();
+                    string? line = sr.ReadLine();
                     if (line == null) break;
                     try
                     {
@@ -73,19 +73,21 @@ namespace SimpleForth
 
         private int numericBase;
 
-        private object[] memory;
+        private readonly object?[] memory;
         private int here;
 
         private bool isCompiling;
 
         public bool IsCompiling { get { return isCompiling; } }
         
-        private string lastWordCompiled; // or, if (isCompiling == false), word last compiled or created
+        private string? lastWordCompiled; // or, if (isCompiling == false), word last compiled or created
 
-        private ForthStack<CompileState> compileStack;
-        private ForthStack<LoopDeDoo> loopStack;
+        private ForthStack<CompileState?> compileStack;
+        private ForthStack<LoopDeDoo?> loopStack;
 
-        private GetWordProc getWord;
+        private GetWordProc? getWord;
+
+        private string GetWord(char delim) => getWord.AssertNotNull()(delim).AssertNotNull();
 
         private delegate void SemicolonProc(CompositeWord cw);
 
@@ -109,7 +111,7 @@ namespace SimpleForth
             private string name;
             private ExecutionToken proc;
             private bool isImmediate;
-            private Vocabulary vocabulary;
+            private Vocabulary? vocabulary;
 
             public ForthDictionaryEntry(string name, ExecutionToken proc, bool isImmediate)
             {
@@ -122,9 +124,9 @@ namespace SimpleForth
             public ForthDictionaryEntry(Vocabulary vocabulary)
             {
                 this.name = vocabulary.Name;
+                this.vocabulary = vocabulary;
                 this.proc = delegate(Forth f) { f.searchOrder.Top = this.vocabulary; };
                 this.isImmediate = false;
-                this.vocabulary = vocabulary;
             }
 
             public string Name { get { return name; } }
@@ -133,7 +135,7 @@ namespace SimpleForth
 
             public bool IsImmediate { get { return isImmediate; } set { isImmediate = value; } }
 
-            public Vocabulary Vocabulary { get { return vocabulary; } }
+            public Vocabulary? Vocabulary { get { return vocabulary; } }
         }
 
         private class Vocabulary
@@ -151,7 +153,7 @@ namespace SimpleForth
             public Dictionary<string, ForthDictionaryEntry> Dict { get { return dict; } }
         }
 
-        private CompositeWord CodeBeingCompiled { get { return compileStack.Top.CompositeWord; } }
+        private CompositeWord CodeBeingCompiled { get { return compileStack.Top.AssertNotNull().CompositeWord; } }
 
         private static bool Within(long lo, long medium, long hi)
         {
@@ -205,7 +207,7 @@ namespace SimpleForth
 
         public bool PopBool()
         {
-            object obj = dStack.Pop();
+            object? obj = dStack.Pop();
             if (obj is long)
             {
                 long l = (long)obj;
@@ -221,8 +223,15 @@ namespace SimpleForth
 
         public long PopInt64()
         {
-            object obj = dStack.Pop();
-            return (long)obj;
+            object? obj = dStack.Pop();
+            if (obj is long L)
+            {
+                return L;
+            }
+            else
+            {
+                throw new InvalidCastException("Object at top of stack was not a long");
+            }
         }
 
         public void PushUInt64(ulong u)
@@ -232,9 +241,15 @@ namespace SimpleForth
 
         public ulong PopUInt64()
         {
-            object obj = dStack.Pop();
-            long l = (long)obj;
-            return unchecked((ulong)l);
+            object? obj = dStack.Pop();
+            if (obj is long l)
+            {
+                return unchecked((ulong)l);
+            }
+            else
+            {
+                throw new InvalidCastException("Object at top of stack was not a long");
+            }
         }
 
         public void PushExecutionToken(ExecutionToken et)
@@ -244,8 +259,15 @@ namespace SimpleForth
 
         public ExecutionToken PopExecutionToken()
         {
-            object obj = dStack.Pop();
-            return (ExecutionToken)obj;
+            object? obj = dStack.Pop();
+            if (obj is ExecutionToken xt)
+            {
+                return xt;
+            }
+            else
+            {
+                throw new Exception("PopExecutionToken: item on top of stack was not an ExecutionToken");
+            }
         }
 
         public void PushBytes(byte[] b)
@@ -255,23 +277,31 @@ namespace SimpleForth
 
         public byte[] PopByteArray()
         {
-            return (byte[])(dStack.Pop());
+            object? val = dStack.Pop();
+            if (val is byte[] b)
+            {
+                return b;
+            }
+            else
+            {
+                throw new Exception("PopByteArray: item on top of stack was not a byte array");
+            }
         }
 
         public Forth()
         {
-            dStack = new ForthStack<object>();
-            aStack = new ForthStack<object>();
-            rStack = new ForthStack<int>();
+            dStack = new ForthStack<object?>(null);
+            aStack = new ForthStack<object?>(null);
+            rStack = new ForthStack<int>(0);
 
-            searchOrder = new ForthStack<Vocabulary>();
+            searchOrder = new ForthStack<Vocabulary?>(null);
             definitions = new Vocabulary("forth");
             definitions.Dict.Add("forth", new ForthDictionaryEntry(definitions));
             searchOrder.Push(definitions);
 
-            compileStack = new ForthStack<CompileState>();
+            compileStack = new ForthStack<CompileState?>(null);
 
-            loopStack = new ForthStack<LoopDeDoo>();
+            loopStack = new ForthStack<LoopDeDoo?>(null);
             numericBase = 10;
 
             memory = new object[1024];
@@ -291,15 +321,15 @@ namespace SimpleForth
                 if (pInfo.Length != 1) continue;
                 if (pInfo[0].ParameterType != typeof(Forth)) continue;
                 if (mi.ReturnType != typeof(void)) continue;
-                ForthWordAttribute fwa = obj[0] as ForthWordAttribute;
+                ForthWordAttribute fwa = (ForthWordAttribute)obj[0];
                 ForthDictionaryEntry fde = new ForthDictionaryEntry
                 (
                     fwa.Name,
-                    Delegate.CreateDelegate
+                    (ExecutionToken)Delegate.CreateDelegate
                     (
                         typeof(ExecutionToken),
                         mi
-                    ) as ExecutionToken,
+                    ),
                     fwa.IsImmediate
                 );
                 dict.Add(fde.Name, fde);
@@ -362,7 +392,7 @@ namespace SimpleForth
             else return (test == delimiter);
         }
 
-        public static string ReadWord(TextReader reader, char delimiter)
+        public static string? ReadWord(TextReader reader, char delimiter)
         {
             StringBuilder theWord = new StringBuilder();
             while (true)
@@ -396,9 +426,9 @@ namespace SimpleForth
 
             while (true)
             {
-                string word = ReadWord(tr, ' ');
+                string? word = ReadWord(tr, ' ');
                 if (word == null) break;
-                ForthDictionaryEntry de = SearchVocabularies(word);
+                ForthDictionaryEntry? de = SearchVocabularies(word);
                 if (de != null)
                 {
                     if (isCompiling)
@@ -499,7 +529,7 @@ namespace SimpleForth
         [ForthWord("swapstacks")]
         public static void SwapStacks(Forth f)
         {
-            ForthStack<object> temp = f.dStack;
+            ForthStack<object?> temp = f.dStack;
             f.dStack = f.aStack;
             f.aStack = temp;
         }
@@ -569,7 +599,7 @@ namespace SimpleForth
         {
             long pos = f.PopInt64();
             if (pos >= 256 || pos < 0) throw new ArgumentException("pick! too far");
-            object v = f.dStack.Pop();
+            object? v = f.dStack.Pop();
             f.dStack[(int)pos] = v;
         }
 
@@ -608,7 +638,7 @@ namespace SimpleForth
         {
             long pos = f.PopInt64();
             if (pos >= 256 || pos < 0) throw new ArgumentException("apick! too far");
-            object v = f.dStack.Pop();
+            object? v = f.dStack.Pop();
             f.aStack[(int)pos] = v;
         }
 
@@ -817,15 +847,22 @@ namespace SimpleForth
         [ForthWord(".")]
         public static void Dot(Forth f)
         {
-            object obj = f.dStack.Pop();
-            Console.Write(Convert.ToString(obj));
+            object? obj = f.dStack.Pop();
+            if (obj is null)
+            {
+                Console.Write("(null)");
+            }
+            else
+            {
+                Console.Write(Convert.ToString(obj));
+            }
             Console.Write(" ");
         }
 
         [ForthWord("u.")]
         public static void UnsignedDot(Forth f)
         {
-            object obj = f.dStack.Pop();
+            object? obj = f.dStack.Pop();
             if (obj is long)
             {
                 long l = (long)obj;
@@ -841,7 +878,7 @@ namespace SimpleForth
         {
             if (f.isCompiling)
             {
-                string str = f.getWord('"');
+                string str = f.GetWord('"');
                 f.AppendCode
                 (
                     delegate(Forth g)
@@ -852,7 +889,7 @@ namespace SimpleForth
             }
             else
             {
-                string str = f.getWord('"');
+                string str = f.GetWord('"');
                 Console.Write(str);
             }
         }
@@ -860,13 +897,13 @@ namespace SimpleForth
         [ForthWord("\\", IsImmediate = true)]
         public static void Backslash(Forth f)
         {
-            f.getWord('\n');
+            f.GetWord('\n');
         }
 
         [ForthWord("(", IsImmediate = true)]
         public static void LParen(Forth f)
         {
-            f.getWord(')');
+            f.GetWord(')');
         }
 
         [ForthWord("space")]
@@ -928,7 +965,7 @@ namespace SimpleForth
         public static void Bang(Forth f)
         {
             long index = f.PopInt64();
-            object v = f.dStack.Pop();
+            object? v = f.dStack.Pop();
             f.memory[(int)index] = v;
         }
 
@@ -949,7 +986,7 @@ namespace SimpleForth
         [ForthWord(",")]
         public static void Comma(Forth f)
         {
-            object v = f.dStack.Pop();
+            object? v = f.dStack.Pop();
             f.memory[f.here] = v;
             f.here++;
         }
@@ -957,7 +994,7 @@ namespace SimpleForth
         [ForthWord("create")]
         public static void Create(Forth f)
         {
-            string word = f.getWord(' ');
+            string word = f.GetWord(' ');
             f.Define(word, MakeLiteralOp((long)f.here));
         }
 
@@ -979,11 +1016,11 @@ namespace SimpleForth
 
         private class CompositeWord
         {
-            private List<ExecutionToken> components;
+            private List<ExecutionToken?> components;
 
             public CompositeWord()
             {
-                components = new List<ExecutionToken>();
+                components = new List<ExecutionToken?>();
             }
 
             public void Run(Forth f)
@@ -995,11 +1032,11 @@ namespace SimpleForth
                     if (pos < 0 || pos >= components.Count) break;
                     int posNext = pos + 1;
                     f.rStack.Push(posNext);
-                    components[pos](f);
+                    components[pos].AssertNotNull()(f);
                 }
             }
 
-            public void Add(ExecutionToken xt)
+            public void Add(ExecutionToken? xt)
             {
                 components.Add(xt);
             }
@@ -1035,7 +1072,7 @@ namespace SimpleForth
         {
             if (!f.compileStack.IsEmpty) throw new InvalidOperationException("Nested definitions are not permitted");
             f.isCompiling = true;
-            string localWordBeingCompiled = f.getWord(' ');
+            string localWordBeingCompiled = f.GetWord(' ');
             f.compileStack.Push
             (
                 new CompileState
@@ -1084,7 +1121,7 @@ namespace SimpleForth
                             delegate(Forth g)
                             {
                                 //System.Diagnostics.Debug.WriteLine("Executing does> (setting up " + g.lastWordCompiled + ")");
-                                string localLastWordCompiled = g.lastWordCompiled;
+                                string localLastWordCompiled = g.lastWordCompiled.AssertNotNull();
                                 ForthDictionaryEntry fde = g.definitions.Dict[localLastWordCompiled];
                                 ExecutionToken oldBehavior = fde.Proc;
                                 fde.Proc = delegate(Forth h)
@@ -1110,7 +1147,7 @@ namespace SimpleForth
         {
             while (!f.compileStack.IsEmpty)
             {
-                CompileState compileState = f.compileStack.Pop();
+                CompileState compileState = f.compileStack.Pop().AssertNotNull();
                 compileState.SemicolonProc(compileState.CompositeWord);
             }
             f.isCompiling = false;
@@ -1246,10 +1283,10 @@ namespace SimpleForth
 
         public static void RuntimeLoop(Forth f)
         {
-            bool shouldStop = f.loopStack.Top.IncreaseLoopCounter(1L);
+            bool shouldStop = f.loopStack.Top.AssertNotNull().IncreaseLoopCounter(1L);
             if (!shouldStop)
             {
-                f.rStack.Top = f.loopStack.Top.LoopCodeBegin;
+                f.rStack.Top = f.loopStack.Top.AssertNotNull().LoopCodeBegin;
             }
         }
 
@@ -1269,7 +1306,7 @@ namespace SimpleForth
             (
                 delegate(Forth g)
                 {
-                    g.PushInt64(g.loopStack.Top.LoopCounter);
+                    g.PushInt64(g.loopStack.Top.AssertNotNull().LoopCounter);
                 }
             );
         }
@@ -1282,7 +1319,7 @@ namespace SimpleForth
             (
                 delegate(Forth g)
                 {
-                    g.PushInt64(g.loopStack[1].LoopCounter);
+                    g.PushInt64(g.loopStack[1].AssertNotNull().LoopCounter);
                 }
             );
         }
@@ -1308,7 +1345,7 @@ namespace SimpleForth
             (
                 delegate(Forth g)
                 {
-                    g.rStack.Top = g.loopStack.Top.LoopCodeEnd;
+                    g.rStack.Top = g.loopStack.Top.AssertNotNull().LoopCodeEnd;
                     g.loopStack.Drop();
                 }
             );
@@ -1320,11 +1357,11 @@ namespace SimpleForth
             bool shouldStop;
             if (amt > 0)
             {
-                shouldStop = f.loopStack.Top.IncreaseLoopCounter(amt);
+                shouldStop = f.loopStack.Top.AssertNotNull().IncreaseLoopCounter(amt);
             }
             else if (amt < 0)
             {
-                shouldStop = f.loopStack.Top.DecreaseLoopCounter(-amt);
+                shouldStop = f.loopStack.Top.AssertNotNull().DecreaseLoopCounter(-amt);
             }
             else
             {
@@ -1332,7 +1369,7 @@ namespace SimpleForth
             }
             if (!shouldStop)
             {
-                f.rStack.Top = f.loopStack.Top.LoopCodeBegin;
+                f.rStack.Top = f.loopStack.Top.AssertNotNull().LoopCodeBegin;
             }
         }
 
@@ -1347,10 +1384,10 @@ namespace SimpleForth
         public static void RuntimeUPlusLoop(Forth f)
         {
             long amt = f.PopInt64();
-            bool shouldStop = f.loopStack.Top.IncreaseLoopCounter(amt);
+            bool shouldStop = f.loopStack.Top.AssertNotNull().IncreaseLoopCounter(amt);
             if (!shouldStop)
             {
-                f.rStack.Top = f.loopStack.Top.LoopCodeBegin;
+                f.rStack.Top = f.loopStack.Top.AssertNotNull().LoopCodeBegin;
             }
         }
 
@@ -1365,10 +1402,10 @@ namespace SimpleForth
         public static void RuntimeUMinusLoop(Forth f)
         {
             long amt = f.PopInt64();
-            bool shouldStop = f.loopStack.Top.DecreaseLoopCounter(amt);
+            bool shouldStop = f.loopStack.Top.AssertNotNull().DecreaseLoopCounter(amt);
             if (!shouldStop)
             {
-                f.rStack.Top = f.loopStack.Top.LoopCodeBegin;
+                f.rStack.Top = f.loopStack.Top.AssertNotNull().LoopCodeBegin;
             }
         }
 
@@ -1397,7 +1434,7 @@ namespace SimpleForth
         public static void Literal(Forth f)
         {
             if (!f.isCompiling) throw new InvalidOperationException("literal is only valid when compiling");
-            object value = f.dStack.Pop();
+            object? value = f.dStack.Pop();
             f.AppendCode(MakeLiteralOp(value));
         }
 
@@ -1411,8 +1448,8 @@ namespace SimpleForth
         public static void Postpone(Forth f)
         {
             if (!f.isCompiling) throw new InvalidOperationException("postpone is only valid when compiling");
-            string word = f.getWord(' ');
-            ForthDictionaryEntry fde = f.SearchVocabularies(word);
+            string word = f.GetWord(' ');
+            ForthDictionaryEntry? fde = f.SearchVocabularies(word);
             if (fde == null) throw new InvalidOperationException("attempt to postpone undefined word " + word);
             if (fde.IsImmediate)
             {
@@ -1428,8 +1465,8 @@ namespace SimpleForth
         [ForthWord("'")]
         public static void Tick(Forth f)
         {
-            string word = f.getWord(' ');
-            ForthDictionaryEntry fde = f.SearchVocabularies(word);
+            string word = f.GetWord(' ');
+            ForthDictionaryEntry? fde = f.SearchVocabularies(word);
             if (fde == null) throw new InvalidOperationException("attempt to tick undefined word " + word);
             f.dStack.Push(fde.Proc);
         }
@@ -1438,8 +1475,8 @@ namespace SimpleForth
         public static void BracketTick(Forth f)
         {
             if (!f.isCompiling) throw new InvalidOperationException("bracket-tick is only valid when compiling");
-            string word = f.getWord(' ');
-            ForthDictionaryEntry fde = f.SearchVocabularies(word);
+            string word = f.GetWord(' ');
+            ForthDictionaryEntry? fde = f.SearchVocabularies(word);
             if (fde == null) throw new InvalidOperationException("attempt to bracket-tick undefined word " + word);
             f.AppendCode(MakeLiteralOp(fde.Proc));
         }
@@ -1451,7 +1488,7 @@ namespace SimpleForth
             xt(f);
         }
 
-        public static ExecutionToken MakeLiteralOp(object obj)
+        public static ExecutionToken MakeLiteralOp(object? obj)
         {
             return delegate(Forth f)
             {
@@ -1480,13 +1517,13 @@ namespace SimpleForth
         [ForthWord("definitions")]
         public static void Definitions(Forth f)
         {
-            f.definitions = f.searchOrder.Top;
+            f.definitions = f.searchOrder.Top.AssertNotNull();
         }
 
         [ForthWord("vocabulary")]
         public static void CreateVocabulary(Forth f)
         {
-            string name = f.getWord(' ');
+            string name = f.GetWord(' ');
             Dictionary<string, ForthDictionaryEntry> dict = f.definitions.Dict;
             if (dict.ContainsKey(name)) dict.Remove(name);
             dict.Add(name, new ForthDictionaryEntry(new Vocabulary(name)));
@@ -1495,7 +1532,7 @@ namespace SimpleForth
         [ForthWord("bytearray?")]
         public static void IsBytes(Forth f)
         {
-            object obj = f.dStack.Pop();
+            object? obj = f.dStack.Pop();
             f.PushBool(obj is byte[]);
         }
 
@@ -1526,12 +1563,12 @@ namespace SimpleForth
         {
             if (f.isCompiling)
             {
-                string hex = f.getWord(' ');
+                string hex = f.GetWord(' ');
                 f.AppendCode(MakeLiteralOp(HexToBytes(hex)));
             }
             else
             {
-                string hex = f.getWord(' ');
+                string hex = f.GetWord(' ');
                 f.dStack.Push(HexToBytes(hex));
             }
         }
@@ -1561,9 +1598,9 @@ namespace SimpleForth
             f.dStack.Push(bArr);
         }
 
-        private IByteMemory byteMemory = null;
+        private IByteMemory? byteMemory = null;
 
-        public IByteMemory ByteMemory { get { return byteMemory; } set { byteMemory = value; } }
+        public IByteMemory? ByteMemory { get { return byteMemory; } set { byteMemory = value; } }
 
         private long byteHere = 0;
 
@@ -1578,27 +1615,41 @@ namespace SimpleForth
         [ForthWord("bytememory!")]
         public static void ByteMemoryBang(Forth f)
         {
-            object obj = f.dStack.Pop();
-            if (obj is byte[])
+            object? obj = f.dStack.Pop();
+            if (obj is byte[] b)
             {
-                obj = new ByteArrayWrapper((byte[])obj);
+                obj = new ByteArrayWrapper(b);
             }
-            f.byteMemory = (IByteMemory)obj;
+
+            if (obj is IByteMemory m)
+            {
+                f.byteMemory = m;
+            }
+            else
+            {
+                throw new Exception("Object on top of stack is not a byte memory");
+            }
         }
 
         [ForthWord("realmemory?")]
         public static void IsRealMemory(Forth f)
         {
-            object obj = f.dStack.Pop();
+            object? obj = f.dStack.Pop();
             f.PushBool(obj is MemoryAccessor);
         }
 
         [ForthWord("realaddress")]
         public static void RealAddress(Forth f)
         {
-            object obj = f.dStack.Pop();
-            MemoryAccessor ma = (MemoryAccessor)obj;
-            f.PushInt64(ma.RealAddress);
+            object? obj = f.dStack.Pop();
+            if (obj is MemoryAccessor ma)
+            {
+                f.PushInt64(ma.RealAddress);
+            }
+            else
+            {
+                throw new InvalidCastException("Top of stack was not a MemoryAccessor");
+            }
         }
 
         private unsafe delegate void ByteArrayProc(byte* offset, int size);
@@ -1606,15 +1657,21 @@ namespace SimpleForth
         [ForthWord("crash32")]
         unsafe public static void Crash32(Forth f)
         {
-            if (f.byteMemory is MemoryAccessor)
+            if (f.byteMemory is MemoryAccessor ma)
             {
-                byte[] br = (byte[])(f.dStack.Pop());
-                MemoryAccessor ma = (MemoryAccessor)(f.byteMemory);
-                ByteArrayProc crash = (ByteArrayProc)Marshal.GetDelegateForFunctionPointer((IntPtr)ma.RealAddress, typeof(ByteArrayProc));
-                Console.WriteLine("crash = " + crash);
-                fixed (byte * bPtr = &br[0])
+                object? brObj = f.dStack.Pop();
+                if (brObj is byte[] br)
+                { 
+                    ByteArrayProc crash = (ByteArrayProc)Marshal.GetDelegateForFunctionPointer((IntPtr)ma.RealAddress, typeof(ByteArrayProc));
+                    Console.WriteLine("crash = " + crash);
+                    fixed (byte* bPtr = &br[0])
+                    {
+                        crash(bPtr, br.Length);
+                    }
+                }
+                else
                 {
-                    crash(bPtr, br.Length);
+                    throw new InvalidCastException("Top of stack was not a byte array");
                 }
             }
             else throw new Exception("Cannot execute a byte array");
@@ -1629,7 +1686,7 @@ namespace SimpleForth
         public static void ByteAt(Forth f)
         {
             long offset = f.PopInt64();
-            byte b = f.byteMemory[checked((int)offset)];
+            byte b = f.byteMemory.AssertNotNull()[checked((int)offset)];
             f.PushInt64((long)b);
         }
 
@@ -1637,7 +1694,7 @@ namespace SimpleForth
         public static void Int16At(Forth f)
         {
             long offset = f.PopInt64();
-            ushort u = unchecked((ushort)f.byteMemory.ReadInt16(checked((int)offset)));
+            ushort u = unchecked((ushort)f.byteMemory.AssertNotNull().ReadInt16(checked((int)offset)));
             f.PushInt64((long)u);
         }
 
@@ -1645,7 +1702,7 @@ namespace SimpleForth
         public static void Int32At(Forth f)
         {
             long offset = f.PopInt64();
-            uint l = unchecked((uint)f.byteMemory.ReadInt32(checked((int)offset)));
+            uint l = unchecked((uint)f.byteMemory.AssertNotNull().ReadInt32(checked((int)offset)));
             f.PushInt64((long)l);
         }
 
@@ -1653,7 +1710,7 @@ namespace SimpleForth
         public static void Int64At(Forth f)
         {
             long offset = f.PopInt64();
-            long l = f.byteMemory.ReadInt64(checked((int)offset));
+            long l = f.byteMemory.AssertNotNull().ReadInt64(checked((int)offset));
             f.PushInt64(l);
         }
 
@@ -1662,7 +1719,7 @@ namespace SimpleForth
         {
             long offset = f.PopInt64();
             long value = f.PopInt64();
-            f.byteMemory[checked((int)offset)] = unchecked((byte)value);
+            f.byteMemory.AssertNotNull()[checked((int)offset)] = unchecked((byte)value);
         }
 
         [ForthWord("w!")]
@@ -1670,7 +1727,7 @@ namespace SimpleForth
         {
             long offset = f.PopInt64();
             long value = f.PopInt64();
-            f.byteMemory.WriteInt16(checked((int)offset), unchecked((short)value));
+            f.byteMemory.AssertNotNull().WriteInt16(checked((int)offset), unchecked((short)value));
         }
 
         [ForthWord("l!")]
@@ -1678,7 +1735,7 @@ namespace SimpleForth
         {
             long offset = f.PopInt64();
             long value = f.PopInt64();
-            f.byteMemory.WriteInt32(checked((int)offset), unchecked((int)value));
+            f.byteMemory.AssertNotNull().WriteInt32(checked((int)offset), unchecked((int)value));
         }
 
         [ForthWord("x!")]
@@ -1686,14 +1743,14 @@ namespace SimpleForth
         {
             long offset = f.PopInt64();
             long value = f.PopInt64();
-            f.byteMemory.WriteInt64(checked((int)offset), value);
+            f.byteMemory.AssertNotNull().WriteInt64(checked((int)offset), value);
         }
 
         [ForthWord("c,")]
         public static void ByteComma(Forth f)
         {
             long value = f.PopInt64();
-            f.byteMemory[f.byteHere] = unchecked((byte)value);
+            f.byteMemory.AssertNotNull()[f.byteHere] = unchecked((byte)value);
             f.byteHere++;
         }
 
@@ -1701,7 +1758,7 @@ namespace SimpleForth
         public static void Int16Comma(Forth f)
         {
             long value = f.PopInt64();
-            f.byteMemory.WriteInt16(f.byteHere, unchecked((short)value));
+            f.byteMemory.AssertNotNull().WriteInt16(f.byteHere, unchecked((short)value));
             f.byteHere+=2;
         }
 
@@ -1709,7 +1766,7 @@ namespace SimpleForth
         public static void Int32Comma(Forth f)
         {
             long value = f.PopInt64();
-            f.byteMemory.WriteInt32(f.byteHere, unchecked((int)value));
+            f.byteMemory.AssertNotNull().WriteInt32(f.byteHere, unchecked((int)value));
             f.byteHere += 4;
         }
 
@@ -1717,7 +1774,7 @@ namespace SimpleForth
         public static void Int64Comma(Forth f)
         {
             long value = f.PopInt64();
-            f.byteMemory.WriteInt64(f.byteHere, value);
+            f.byteMemory.AssertNotNull().WriteInt64(f.byteHere, value);
             f.byteHere += 8;
         }
 
@@ -1766,36 +1823,40 @@ namespace SimpleForth
         [ForthWord("rex.0")]
         public static void RexDotZero(Forth f)
         {
+            IByteMemory fbm = f.ByteMemory.AssertNotNull();
+
             if (f.RexStatus == RexStatus.Bookmarked)
             {
                 if (f.ByteHere > f.RexLocation)
                 {
-                    f.ByteMemory.MemMove(f.RexLocation + 1, f.RexLocation, checked((int)(f.ByteHere - f.RexLocation)));
+                    fbm.MemMove(f.RexLocation + 1, f.RexLocation, checked((int)(f.ByteHere - f.RexLocation)));
                 }
                 f.RexStatus = RexStatus.Inserted;
             }
             
             if (f.RexStatus == RexStatus.Inserted)
             {
-                f.ByteMemory[f.RexLocation] = 0x40;
+                fbm[f.RexLocation] = 0x40;
             }
         }
 
         private static void RexDotSomething(Forth f, byte bitToSet)
         {
+            IByteMemory fbm = f.ByteMemory.AssertNotNull();
+
             if (f.RexStatus == RexStatus.Bookmarked)
             {
                 if (f.ByteHere > f.RexLocation)
                 {
-                    f.ByteMemory.MemMove(f.RexLocation + 1, f.RexLocation, checked((int)(f.ByteHere - f.RexLocation)));
-                    f.ByteMemory[f.RexLocation] = 0x40;
+                    fbm.MemMove(f.RexLocation + 1, f.RexLocation, checked((int)(f.ByteHere - f.RexLocation)));
+                    fbm[f.RexLocation] = 0x40;
                 }
                 f.RexStatus = RexStatus.Inserted;
             }
 
             if (f.RexStatus == RexStatus.Inserted)
             {
-                f.ByteMemory[f.RexLocation] |= bitToSet;
+                fbm[f.RexLocation] |= bitToSet;
             }
             else
             {
@@ -1831,13 +1892,13 @@ namespace SimpleForth
         [ForthWord("bsize")]
         public static void ByteMemorySize(Forth f)
         {
-            f.PushInt64(f.byteMemory.Size);
+            f.PushInt64(f.byteMemory.AssertNotNull().Size);
         }
 
         [ForthWord("bunused")]
         public static void ByteMemoryUnused(Forth f)
         {
-            f.PushInt64(f.byteMemory.Size - f.byteHere);
+            f.PushInt64(f.byteMemory.AssertNotNull().Size - f.byteHere);
         }
 
         [ForthWord("sxb")]
@@ -1960,7 +2021,7 @@ namespace SimpleForth
             int iEnd = f.searchOrder.Depth;
             for(int i = 0; i < iEnd; ++i)
             {
-                Console.WriteLine("  " + f.searchOrder[i].Name);
+                Console.WriteLine("  " + f.searchOrder[i].AssertNotNull().Name);
             }
             Console.WriteLine("Definitions: " + f.definitions.Name);
         }
@@ -1969,10 +2030,10 @@ namespace SimpleForth
         public static void Words(Forth f)
         {
             List<string> words = new List<string>();
-            words.AddRange(f.searchOrder[0].Dict.Keys);
+            words.AddRange(f.searchOrder[0].AssertNotNull().Dict.Keys);
             words.Sort();
             int width = Console.BufferWidth;
-            Console.WriteLine(words.Count + " words in " + f.searchOrder[0].Name);
+            Console.WriteLine(words.Count + " words in " + f.searchOrder[0].AssertNotNull().Name);
             Console.Write("  ");
             int remain = width - 4;
             foreach (string word in words)
@@ -2059,16 +2120,19 @@ namespace SimpleForth
         {
             long len = f.PopInt64();
             long offset = f.PopInt64();
-            Dump(f.byteMemory, checked((int)offset), checked((int)len));
+            Dump(f.byteMemory.AssertNotNull(), checked((int)offset), checked((int)len));
         }
 
         [ForthWord("dumparray")]
         public static void DumpArray(Forth f)
         {
-            byte[] array = (byte[])(f.dStack.Pop());
-            long len = f.PopInt64();
-            long offset = f.PopInt64();
-            Dump(new ByteArrayWrapper(array), checked((int)offset), checked((int)len));
+            object? objArray = f.dStack.Pop();
+            if (objArray is byte[] array)
+            {
+                long len = f.PopInt64();
+                long offset = f.PopInt64();
+                Dump(new ByteArrayWrapper(array), checked((int)offset), checked((int)len));
+            }
         }
 
         [ForthWord("1+")]
@@ -2088,7 +2152,7 @@ namespace SimpleForth
 
     public delegate void ExecutionToken(Forth f);
 
-    public delegate string GetWordProc(char delimiter);
+    public delegate string? GetWordProc(char delimiter);
 
     [AttributeUsage(AttributeTargets.Method)]
     public class ForthWordAttribute : Attribute

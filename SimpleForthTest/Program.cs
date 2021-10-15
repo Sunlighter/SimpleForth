@@ -29,8 +29,7 @@ namespace SimpleForthTest
                     Marshal.WriteByte(mb.Location, (byte)64);
                 }
 #endif
-                Console.SetBufferSize(120, 60);
-                Console.SetWindowSize(120, 60);
+                
                 Console.WriteLine("Sunlit World Forth in C#");
                 Console.WriteLine("Copyright (c) 2007 by Edward Kiser");
                 Console.WriteLine("All Rights Reserved");
@@ -48,7 +47,8 @@ namespace SimpleForthTest
                     while (!done)
                     {
                         if (f.IsCompiling) Console.WriteLine("ok (compiling)"); else Console.WriteLine("ok");
-                        string x = Console.ReadLine();
+                        string? x = Console.ReadLine();
+                        if (x is null) break;
                         f.Execute(x);
                     }
                 }

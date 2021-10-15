@@ -8,11 +8,13 @@ namespace SimpleForth
     {
         private T[] items;
         private int ptr;
+        private readonly T theDefault;
 
-        public ForthStack()
+        public ForthStack(T theDefault)
         {
             items = new T[GetPreferredSpace(0)];
             ptr = items.Length;
+            this.theDefault = theDefault;
         }
 
         private static int GetPreferredSpace(int size)
@@ -46,7 +48,7 @@ namespace SimpleForth
         {
             if (ptr >= items.Length) throw new ForthStackException("Stack underflow");
             T value = items[ptr];
-            items[ptr] = default(T);
+            items[ptr] = theDefault;
             ++ptr;
             return value;
         }
@@ -85,7 +87,7 @@ namespace SimpleForth
         {
             for (int i = 0; i < count; ++i)
             {
-                Push(default(T));
+                Push(theDefault);
             }
         }
 
@@ -94,7 +96,7 @@ namespace SimpleForth
             if ((ptr + count) > items.Length) throw new ForthStackException("Stack underflow");
             for (int i = 0; i < count; ++i)
             {
-                items[ptr] = default(T);
+                items[ptr] = theDefault;
                 ++ptr;
             }
         }
@@ -107,7 +109,7 @@ namespace SimpleForth
         public void Drop()
         {
             if (ptr >= items.Length) throw new ForthStackException("Stack underflow");
-            items[ptr] = default(T);
+            items[ptr] = theDefault;
             ++ptr;
         }
 
