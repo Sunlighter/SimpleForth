@@ -1,69 +1,43 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Text;
 
 namespace SimpleForth
 {
     public class ForthStack<T>
     {
-        private T[] items;
-        private int ptr;
-        private readonly T theDefault;
+        private ImmutableList<T> items;
 
-        public ForthStack(T theDefault)
+        public ForthStack()
         {
-            items = new T[GetPreferredSpace(0)];
-            ptr = items.Length;
-            this.theDefault = theDefault;
-        }
-
-        private static int GetPreferredSpace(int size)
-        {
-            int i = 16;
-            while (i < size) i <<= 1;
-            return i;
-        }
-
-        private void Respace(int newSpace)
-        {
-            T[] items2 = new T[newSpace];
-            int len = items.Length - ptr;
-            int ptr2 = newSpace - len;
-            Array.Copy(items, ptr, items2, ptr2, len);
-            items = items2;
-            ptr = ptr2;
+            items = ImmutableList<T>.Empty;
         }
 
         public void Push(T item)
         {
-            if (ptr == 0)
-            {
-                Respace(items.Length + 1);
-            }
-            --ptr;
-            items[ptr] = item;
+            items = items.Insert(0, item);
         }
 
         public T Pop()
         {
-            if (ptr >= items.Length) throw new ForthStackException("Stack underflow");
-            T value = items[ptr];
-            items[ptr] = theDefault;
-            ++ptr;
-            return value;
+            if (items.IsEmpty) throw new ForthStackException("Stack underflow");
+            T item = items[0];
+            items = items.RemoveAt(0);
+            return item;
         }
 
         public T Top
         {
             get
             {
-                if (ptr >= items.Length) throw new ForthStackException("Stack underflow");
-                return items[ptr];
+                if (items.IsEmpty) throw new ForthStackException("Stack underflow");
+                return items[0];
             }
             set
             {
-                if (ptr >= items.Length) throw new ForthStackException("Stack underflow");
-                items[ptr] = value;
+                if (items.IsEmpty) throw new ForthStackException("Stack underflow");
+                items = items.RemoveAt(0).Insert(0, value);
             }
         }
 
@@ -72,18 +46,18 @@ namespace SimpleForth
             get
             {
                 if (offset < 0) throw new ForthStackException("Invalid offset");
-                if ((ptr + offset) > items.Length) throw new ForthStackException("Stack underflow");
-                return items[ptr + offset];
+                if (offset >= items.Count) throw new ForthStackException("Stack underflow");
+                return items[offset];
             }
             set
             {
                 if (offset < 0) throw new ForthStackException("Invalid offset");
-                if ((ptr + offset) > items.Length) throw new ForthStackException("Stack underflow");
-                items[ptr + offset] = value;
+                if (offset >= items.Count) throw new ForthStackException("Stack underflow");
+                items = items.RemoveAt(offset).Insert(offset, value);
             }
         }
 
-        public void Alloc(int count)
+        public void Alloc(int count, T theDefault)
         {
             for (int i = 0; i < count; ++i)
             {
@@ -93,12 +67,8 @@ namespace SimpleForth
 
         public void Free(int count)
         {
-            if ((ptr + count) > items.Length) throw new ForthStackException("Stack underflow");
-            for (int i = 0; i < count; ++i)
-            {
-                items[ptr] = theDefault;
-                ++ptr;
-            }
+            if (count > items.Count) throw new ForthStackException("Stack underflow");
+            items = items.RemoveRange(0, count);
         }
 
         public void Dup()
@@ -108,44 +78,43 @@ namespace SimpleForth
 
         public void Drop()
         {
-            if (ptr >= items.Length) throw new ForthStackException("Stack underflow");
-            items[ptr] = theDefault;
-            ++ptr;
+            if (items.IsEmpty) throw new ForthStackException("Stack underflow");
+            items = items.RemoveAt(0);
         }
 
         public int Depth
         {
             get
             {
-                return items.Length - ptr;
+                return items.Count;
             }
         }
 
-        public bool IsEmpty { get { return ptr == items.Length; } }
+        public bool IsEmpty { get { return items.IsEmpty; } }
 
         public void Swap()
         {
-            T temp = items[ptr];
-            items[ptr] = items[ptr + 1];
-            items[ptr + 1] = temp;
+            if (items.Count < 2) throw new ForthStackException("Stack underflow");
+            T i1 = items[0];
+            items = items.RemoveAt(0).Insert(1, i1);
         }
 
         public void Over()
         {
-            Push(items[ptr + 1]);
+            if (items.Count < 2) throw new ForthStackException("Stack underflow");
+            items = items.Insert(0, items[1]);
         }
 
         public void Nip()
         {
-            items[ptr + 1] = items[ptr];
-            ++ptr;
+            if (items.Count < 2) throw new ForthStackException("Stack underflow");
+            items = items.RemoveAt(1);
         }
 
         public void Tuck()
         {
-            Dup();
-            items[ptr + 1] = items[ptr + 2];
-            items[ptr + 2] = items[ptr];
+            Swap();
+            Over();
         }
     }
 

@@ -290,18 +290,18 @@ namespace SimpleForth
 
         public Forth()
         {
-            dStack = new ForthStack<object?>(null);
-            aStack = new ForthStack<object?>(null);
-            rStack = new ForthStack<int>(0);
+            dStack = new ForthStack<object?>();
+            aStack = new ForthStack<object?>();
+            rStack = new ForthStack<int>();
 
-            searchOrder = new ForthStack<Vocabulary?>(null);
+            searchOrder = new ForthStack<Vocabulary?>();
             definitions = new Vocabulary("forth");
             definitions.Dict.Add("forth", new ForthDictionaryEntry(definitions));
             searchOrder.Push(definitions);
 
-            compileStack = new ForthStack<CompileState?>(null);
+            compileStack = new ForthStack<CompileState?>();
 
-            loopStack = new ForthStack<LoopDeDoo?>(null);
+            loopStack = new ForthStack<LoopDeDoo?>();
             numericBase = 10;
 
             memory = new object[1024];
@@ -575,7 +575,7 @@ namespace SimpleForth
         {
             long count = f.PopInt64();
             if (count > 256 || count < 0) throw new ArgumentException("alloc too much");
-            f.dStack.Alloc((int)count);
+            f.dStack.Alloc((int)count, 0L);
         }
 
         [ForthWord("free")]
@@ -614,7 +614,7 @@ namespace SimpleForth
         {
             long count = f.PopInt64();
             if (count > 256 || count < 0) throw new ArgumentException("aalloc too much");
-            f.aStack.Alloc((int)count);
+            f.aStack.Alloc((int)count, 0L);
         }
 
         [ForthWord("afree")]
