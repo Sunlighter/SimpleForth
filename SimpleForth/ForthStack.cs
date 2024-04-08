@@ -116,6 +116,12 @@ namespace SimpleForth
             Swap();
             Over();
         }
+
+        public ImmutableList<T> Items
+        {
+            get { return items; }
+            set { items = value; }
+        }
     }
 
     [Serializable]
