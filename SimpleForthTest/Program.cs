@@ -49,7 +49,26 @@ namespace SimpleForthTest
                         if (f.IsCompiling) Console.WriteLine("ok (compiling)"); else Console.WriteLine("ok");
                         string? x = Console.ReadLine();
                         if (x is null) break;
-                        f.Execute(x);
+                        bool beganTransaction = false;
+                        try
+                        {
+                            f.BeginTransaction();
+                            beganTransaction = true;
+                            f.Execute(x);
+                            f.CommitTransaction();
+                        }
+                        catch(Exception exc)
+                        {
+                            if (beganTransaction)
+                            {
+                                f.RollBackTransaction();
+                            }
+                            else
+                            {
+                                Console.WriteLine("Failed to begin transaction!");
+                            }
+                            Console.WriteLine($"{exc.GetType().FullName}: {exc.Message}");
+                        }
                     }
                 }
             }
