@@ -376,6 +376,9 @@ namespace SimpleForth
             lastWordCompiled = new TransactionBox<string?>(transactionLog, null);
             getWord = new TransactionBox<GetWordProc?>(transactionLog, null);
 
+            byteMemory = new TransactionBox<IByteMemory?>(transactionLog, null);
+            byteHere = new TransactionBox<long>(transactionLog, 0L);
+
             // populate initial dictionary
 
             ImmutableDictionary<string, ForthDictionaryEntry> dict = definitions.Dict;
@@ -1712,13 +1715,13 @@ namespace SimpleForth
             f.dStack.Push(bArr);
         }
 
-        private IByteMemory? byteMemory = null;
+        private readonly TransactionBox<IByteMemory?> byteMemory;
 
-        public IByteMemory? ByteMemory { get { return byteMemory; } set { byteMemory = value; } }
+        public IByteMemory? ByteMemory { get { return byteMemory.Value; } set { byteMemory.Value = value; } }
 
-        private long byteHere = 0;
+        private readonly TransactionBox<long> byteHere;
 
-        public long ByteHere { get { return byteHere; } set { byteHere = value; } }
+        public long ByteHere { get { return byteHere.Value; } set { byteHere.Value = value; } }
 
         [ForthWord("bytememory@")]
         public static void ByteMemoryAt(Forth f)
@@ -1737,7 +1740,7 @@ namespace SimpleForth
 
             if (obj is IByteMemory m)
             {
-                f.byteMemory = m;
+                f.byteMemory.Value = m;
             }
             else
             {
@@ -1771,7 +1774,7 @@ namespace SimpleForth
         [ForthWord("crash32")]
         unsafe public static void Crash32(Forth f)
         {
-            if (f.byteMemory is MemoryAccessor ma)
+            if (f.byteMemory.Value is MemoryAccessor ma)
             {
                 object? brObj = f.dStack.Pop();
                 if (brObj is byte[] br)
@@ -1800,7 +1803,7 @@ namespace SimpleForth
         public static void ByteAt(Forth f)
         {
             long offset = f.PopInt64();
-            byte b = f.byteMemory.AssertNotNull()[checked((int)offset)];
+            byte b = f.ByteMemory.AssertNotNull()[checked((int)offset)];
             f.PushInt64((long)b);
         }
 
@@ -1808,7 +1811,7 @@ namespace SimpleForth
         public static void Int16At(Forth f)
         {
             long offset = f.PopInt64();
-            ushort u = unchecked((ushort)f.byteMemory.AssertNotNull().ReadInt16(checked((int)offset)));
+            ushort u = unchecked((ushort)f.ByteMemory.AssertNotNull().ReadInt16(checked((int)offset)));
             f.PushInt64((long)u);
         }
 
@@ -1816,7 +1819,7 @@ namespace SimpleForth
         public static void Int32At(Forth f)
         {
             long offset = f.PopInt64();
-            uint l = unchecked((uint)f.byteMemory.AssertNotNull().ReadInt32(checked((int)offset)));
+            uint l = unchecked((uint)f.ByteMemory.AssertNotNull().ReadInt32(checked((int)offset)));
             f.PushInt64((long)l);
         }
 
@@ -1824,7 +1827,7 @@ namespace SimpleForth
         public static void Int64At(Forth f)
         {
             long offset = f.PopInt64();
-            long l = f.byteMemory.AssertNotNull().ReadInt64(checked((int)offset));
+            long l = f.ByteMemory.AssertNotNull().ReadInt64(checked((int)offset));
             f.PushInt64(l);
         }
 
@@ -1833,7 +1836,7 @@ namespace SimpleForth
         {
             long offset = f.PopInt64();
             long value = f.PopInt64();
-            f.byteMemory.AssertNotNull()[checked((int)offset)] = unchecked((byte)value);
+            f.ByteMemory.AssertNotNull()[checked((int)offset)] = unchecked((byte)value);
         }
 
         [ForthWord("w!")]
@@ -1841,7 +1844,7 @@ namespace SimpleForth
         {
             long offset = f.PopInt64();
             long value = f.PopInt64();
-            f.byteMemory.AssertNotNull().WriteInt16(checked((int)offset), unchecked((short)value));
+            f.ByteMemory.AssertNotNull().WriteInt16(checked((int)offset), unchecked((short)value));
         }
 
         [ForthWord("l!")]
@@ -1849,7 +1852,7 @@ namespace SimpleForth
         {
             long offset = f.PopInt64();
             long value = f.PopInt64();
-            f.byteMemory.AssertNotNull().WriteInt32(checked((int)offset), unchecked((int)value));
+            f.ByteMemory.AssertNotNull().WriteInt32(checked((int)offset), unchecked((int)value));
         }
 
         [ForthWord("x!")]
@@ -1857,52 +1860,52 @@ namespace SimpleForth
         {
             long offset = f.PopInt64();
             long value = f.PopInt64();
-            f.byteMemory.AssertNotNull().WriteInt64(checked((int)offset), value);
+            f.ByteMemory.AssertNotNull().WriteInt64(checked((int)offset), value);
         }
 
         [ForthWord("c,")]
         public static void ByteComma(Forth f)
         {
             long value = f.PopInt64();
-            f.byteMemory.AssertNotNull()[f.byteHere] = unchecked((byte)value);
-            f.byteHere++;
+            f.ByteMemory.AssertNotNull()[f.ByteHere] = unchecked((byte)value);
+            f.ByteHere++;
         }
 
         [ForthWord("w,")]
         public static void Int16Comma(Forth f)
         {
             long value = f.PopInt64();
-            f.byteMemory.AssertNotNull().WriteInt16(f.byteHere, unchecked((short)value));
-            f.byteHere+=2;
+            f.ByteMemory.AssertNotNull().WriteInt16(f.ByteHere, unchecked((short)value));
+            f.ByteHere+=2;
         }
 
         [ForthWord("l,")]
         public static void Int32Comma(Forth f)
         {
             long value = f.PopInt64();
-            f.byteMemory.AssertNotNull().WriteInt32(f.byteHere, unchecked((int)value));
-            f.byteHere += 4;
+            f.ByteMemory.AssertNotNull().WriteInt32(f.ByteHere, unchecked((int)value));
+            f.ByteHere += 4;
         }
 
         [ForthWord("x,")]
         public static void Int64Comma(Forth f)
         {
             long value = f.PopInt64();
-            f.byteMemory.AssertNotNull().WriteInt64(f.byteHere, value);
-            f.byteHere += 8;
+            f.ByteMemory.AssertNotNull().WriteInt64(f.ByteHere, value);
+            f.ByteHere += 8;
         }
 
         [ForthWord("bhere")]
         public static void ByteHereOp(Forth f)
         {
-            f.PushInt64((long)f.byteHere);
+            f.PushInt64((long)f.ByteHere);
         }
 
         [ForthWord("bhere!")]
         public static void ByteHereReset(Forth f)
         {
             long l = f.PopInt64();
-            f.byteHere = l;
+            f.ByteHere = l;
         }
 
 #if true
@@ -2006,13 +2009,13 @@ namespace SimpleForth
         [ForthWord("bsize")]
         public static void ByteMemorySize(Forth f)
         {
-            f.PushInt64(f.byteMemory.AssertNotNull().Size);
+            f.PushInt64(f.ByteMemory.AssertNotNull().Size);
         }
 
         [ForthWord("bunused")]
         public static void ByteMemoryUnused(Forth f)
         {
-            f.PushInt64(f.byteMemory.AssertNotNull().Size - f.byteHere);
+            f.PushInt64(f.ByteMemory.AssertNotNull().Size - f.ByteHere);
         }
 
         [ForthWord("sxb")]
@@ -2234,7 +2237,7 @@ namespace SimpleForth
         {
             long len = f.PopInt64();
             long offset = f.PopInt64();
-            Dump(f.byteMemory.AssertNotNull(), checked((int)offset), checked((int)len));
+            Dump(f.ByteMemory.AssertNotNull(), checked((int)offset), checked((int)len));
         }
 
         [ForthWord("dumparray")]
