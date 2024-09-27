@@ -5,6 +5,7 @@ using System.Reflection;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
+using System.Collections.Immutable;
 
 namespace SimpleForth
 {
@@ -14,9 +15,9 @@ namespace SimpleForth
 
         private ForthStack<object?> dStack;
         private ForthStack<object?> aStack;
-        private ForthStack<int> rStack;
+        private readonly ForthStack<int> rStack;
 
-        private ForthStack<Vocabulary?> searchOrder;
+        private readonly ForthStack<Vocabulary?> searchOrder;
         private Vocabulary definitions;
 
         private ForthDictionaryEntry? SearchVocabularies(string name)
@@ -24,7 +25,7 @@ namespace SimpleForth
             int iEnd = searchOrder.Depth;
             for (int i = 0; i < iEnd; ++i)
             {
-                Dictionary<string, ForthDictionaryEntry> dict = searchOrder[i].AssertNotNull().Dict;
+                ImmutableDictionary<string, ForthDictionaryEntry> dict = searchOrder[i].AssertNotNull().Dict;
                 if (dict.ContainsKey(name)) return dict[name];
             }
             return null;
@@ -32,17 +33,22 @@ namespace SimpleForth
 
         public void Define(string name, ExecutionToken xt)
         {
-            Dictionary<string, ForthDictionaryEntry> dict = definitions.Dict;
-            if (dict.ContainsKey(name)) dict.Remove(name);
-            dict.Add(name, new ForthDictionaryEntry(name, xt, false));
+            ImmutableDictionary<string, ForthDictionaryEntry> dict = definitions.Dict;
+            if (dict.ContainsKey(name))
+            {
+                dict = dict.Remove(name);
+            }
+            dict = dict.Add(name, new ForthDictionaryEntry(name, xt, false));
+            definitions.Dict = dict;
             lastWordCompiled = name;
         }
 
         private void Define(string name, Vocabulary vocabulary)
         {
-            Dictionary<string, ForthDictionaryEntry> dict = definitions.Dict;
-            if (dict.ContainsKey(name)) dict.Remove(name);
-            dict.Add(name, new ForthDictionaryEntry(vocabulary));
+            ImmutableDictionary<string, ForthDictionaryEntry> dict = definitions.Dict;
+            if (dict.ContainsKey(name)) dict = dict.Remove(name);
+            dict = dict.Add(name, new ForthDictionaryEntry(vocabulary));
+            definitions.Dict = dict;
             lastWordCompiled = name;
         }
 
@@ -85,8 +91,8 @@ namespace SimpleForth
         
         private string? lastWordCompiled; // or, if (isCompiling == false), word last compiled or created
 
-        private ForthStack<CompileState?> compileStack;
-        private ForthStack<LoopDeDoo?> loopStack;
+        private readonly ForthStack<CompileState?> compileStack;
+        private readonly ForthStack<LoopDeDoo?> loopStack;
 
         private GetWordProc? getWord;
 
@@ -96,8 +102,8 @@ namespace SimpleForth
 
         private class CompileState
         {
-            private CompositeWord compositeWord;
-            private SemicolonProc semicolonProc;
+            private readonly CompositeWord compositeWord;
+            private readonly SemicolonProc semicolonProc;
 
             public CompileState(CompositeWord compositeWord, SemicolonProc semicolonProc)
             {
@@ -105,8 +111,8 @@ namespace SimpleForth
                 this.semicolonProc = semicolonProc;
             }
 
-            public CompositeWord CompositeWord { get { return compositeWord; } }
-            public SemicolonProc SemicolonProc { get { return semicolonProc; } }
+            public CompositeWord CompositeWord => compositeWord;
+            public SemicolonProc SemicolonProc => semicolonProc;
         }
 
         private class ForthDictionaryEntry
@@ -141,19 +147,33 @@ namespace SimpleForth
             public Vocabulary? Vocabulary { get { return vocabulary; } }
         }
 
-        private class Vocabulary
+        private sealed class Vocabulary
         {
-            private string name;
-            private Dictionary<string, ForthDictionaryEntry> dict;
+            private readonly StrongBox<AbstractTransactionLog> transactionLog;
+            private readonly string name;
+            private ImmutableDictionary<string, ForthDictionaryEntry> dict;
 
-            public Vocabulary(string name)
+            public Vocabulary(StrongBox<AbstractTransactionLog> transactionLog, string name)
             {
+                this.transactionLog = transactionLog;
                 this.name = name;
-                this.dict = new Dictionary<string, ForthDictionaryEntry>();
+                this.dict = ImmutableDictionary<string, ForthDictionaryEntry>.Empty;
             }
 
             public string Name { get { return name; } }
-            public Dictionary<string, ForthDictionaryEntry> Dict { get { return dict; } }
+            public ImmutableDictionary<string, ForthDictionaryEntry> Dict
+            {
+                get
+                {
+                    return dict;
+                }
+                set
+                {
+                    ImmutableDictionary<string, ForthDictionaryEntry> oldDict = dict;
+                    transactionLog.Value?.AddUndo(ObjectKey.CreateNamed(this, "dict"), () => { dict = oldDict; });
+                    dict = value;
+                }
+            }
         }
 
         private CompositeWord CodeBeingCompiled { get { return compileStack.Top.AssertNotNull().CompositeWord; } }
@@ -300,8 +320,8 @@ namespace SimpleForth
             rStack = new ForthStack<int>(transactionLog);
 
             searchOrder = new ForthStack<Vocabulary?>(transactionLog);
-            definitions = new Vocabulary("forth");
-            definitions.Dict.Add("forth", new ForthDictionaryEntry(definitions));
+            definitions = new Vocabulary(transactionLog, "forth");
+            definitions.Dict = definitions.Dict.Add("forth", new ForthDictionaryEntry(definitions));
             searchOrder.Push(definitions);
 
             compileStack = new ForthStack<CompileState?>(transactionLog);
@@ -316,7 +336,7 @@ namespace SimpleForth
 
             // populate initial dictionary
 
-            Dictionary<string, ForthDictionaryEntry> dict = definitions.Dict;
+            ImmutableDictionary<string, ForthDictionaryEntry> dict = definitions.Dict;
 
             foreach (MethodInfo mi in typeof(Forth).GetMethods(BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static))
             {
@@ -337,8 +357,10 @@ namespace SimpleForth
                     ),
                     fwa.IsImmediate
                 );
-                dict.Add(fde.Name, fde);
+                dict = dict.Add(fde.Name, fde);
             }
+
+            definitions.Dict = dict;
         }
 
         private static bool NumericValueUnsafe(char ch, out int i)
@@ -966,33 +988,42 @@ namespace SimpleForth
             f.dStack.Push(f.memory[(int)index]);
         }
 
+        private static void StoreMemory(Forth f, int index, object? v)
+        {
+            object? oldValue = f.memory[index];
+            f.transactionLog.Value?.AddUndo(ObjectKey.CreateIndexed(f.memory, index), () => { f.memory[index] = oldValue; });
+            f.memory[index] = v;
+        }
+
         [ForthWord("!")]
         public static void Bang(Forth f)
         {
             long index = f.PopInt64();
             object? v = f.dStack.Pop();
-            f.memory[(int)index] = v;
+            StoreMemory(f, (int)index, v);
         }
 
         [ForthWord("on")]
         public static void On(Forth f)
         {
             long index = f.PopInt64();
-            f.memory[(int)index] = -1L;
+            StoreMemory(f, (int)index, -1L);
         }
 
         [ForthWord("off")]
         public static void Off(Forth f)
         {
             long index = f.PopInt64();
-            f.memory[(int)index] = 0L;
+            StoreMemory(f, (int)index, 0L);
         }
 
         [ForthWord(",")]
         public static void Comma(Forth f)
         {
             object? v = f.dStack.Pop();
-            f.memory[f.here] = v;
+            StoreMemory(f, f.here, v);
+            int oldHere = f.here;
+            f.transactionLog.Value?.AddUndo(ObjectKey.CreateNamed(f, "here"), () => { f.here = oldHere; });
             f.here++;
         }
 
@@ -1008,6 +1039,8 @@ namespace SimpleForth
         {
             long amt = f.PopInt64();
             if (amt > (long)(f.memory.Length - f.here)) throw new ArgumentOutOfRangeException("Attempt to allot more memory than is available");
+            int oldHere = f.here;
+            f.transactionLog.Value?.AddUndo(ObjectKey.CreateNamed(f, "here"), () => { f.here = oldHere; });
             f.here += (int)amt;
         }
 
@@ -1015,17 +1048,32 @@ namespace SimpleForth
         public static void Variable(Forth f)
         {
             Create(f);
-            f.memory[f.here] = null;
+            StoreMemory(f, f.here, null);
+            int oldHere = f.here;
+            f.transactionLog.Value?.AddUndo(ObjectKey.CreateNamed(f, "here"), () => { f.here = oldHere; });
             f.here++;
         }
 
         private class CompositeWord
         {
-            private List<ExecutionToken?> components;
+            private readonly StrongBox<AbstractTransactionLog> transactionLog;
+            private ImmutableList<ExecutionToken?> _components;
 
-            public CompositeWord()
+            public CompositeWord(StrongBox<AbstractTransactionLog> transactionLog)
             {
-                components = new List<ExecutionToken?>();
+                this.transactionLog = transactionLog;
+                _components = ImmutableList<ExecutionToken?>.Empty;
+            }
+
+            private ImmutableList<ExecutionToken?> components
+            {
+                get { return _components; }
+                set
+                {
+                    ImmutableList<ExecutionToken?> oldValue = _components;
+                    transactionLog.Value?.AddUndo(ObjectKey.CreateNamed(this, "components"), () => { _components = oldValue; });
+                    _components = value;
+                }
             }
 
             public void Run(Forth f)
@@ -1043,7 +1091,7 @@ namespace SimpleForth
 
             public void Add(ExecutionToken? xt)
             {
-                components.Add(xt);
+                components = components.Add(xt);
             }
 
             public void LabelBack(Forth f)
@@ -1066,7 +1114,7 @@ namespace SimpleForth
             public void LabelForward(Forth f)
             {
                 int fixupPos = (int)f.PopInt64();
-                components[fixupPos] = MakeLiteralOp((long)Here);
+                components = components.SetItem(fixupPos, MakeLiteralOp((long)Here));
             }
 
             public int Here { get { return components.Count; } }
@@ -1082,7 +1130,7 @@ namespace SimpleForth
             (
                 new CompileState
                 (
-                    new CompositeWord(),
+                    new CompositeWord(f.transactionLog),
                     delegate(CompositeWord finishedWord)
                     {
                         f.Define(localWordBeingCompiled, new ExecutionToken(finishedWord.Run));
@@ -1100,7 +1148,7 @@ namespace SimpleForth
             (
                 new CompileState
                 (
-                    new CompositeWord(),
+                    new CompositeWord(f.transactionLog),
                     delegate(CompositeWord finishedWord)
                     {
                         f.dStack.Push(new ExecutionToken(finishedWord.Run));
@@ -1117,7 +1165,7 @@ namespace SimpleForth
             (
                 new CompileState
                 (
-                    new CompositeWord(),
+                    new CompositeWord(f.transactionLog),
                     delegate(CompositeWord finishedWord)
                     {
                         //System.Diagnostics.Debug.WriteLine("Finished does>");
@@ -1529,9 +1577,10 @@ namespace SimpleForth
         public static void CreateVocabulary(Forth f)
         {
             string name = f.GetWord(' ');
-            Dictionary<string, ForthDictionaryEntry> dict = f.definitions.Dict;
-            if (dict.ContainsKey(name)) dict.Remove(name);
-            dict.Add(name, new ForthDictionaryEntry(new Vocabulary(name)));
+            ImmutableDictionary<string, ForthDictionaryEntry> dict = f.definitions.Dict;
+            if (dict.ContainsKey(name)) dict = dict.Remove(name);
+            dict = dict.Add(name, new ForthDictionaryEntry(new Vocabulary(f.transactionLog, name)));
+            f.definitions.Dict = dict;
         }
 
         [ForthWord("bytearray?")]
