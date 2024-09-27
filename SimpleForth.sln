@@ -3,9 +3,15 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31808.319
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SimpleForth", "SimpleForth\SimpleForth.csproj", "{9E6779FC-0CD3-4F1E-AD73-EAD6690359F7}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SimpleForth", "SimpleForth\SimpleForth.csproj", "{9E6779FC-0CD3-4F1E-AD73-EAD6690359F7}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SimpleForthTest", "SimpleForthTest\SimpleForthTest.csproj", "{F406F2F7-A90F-45D7-99FE-918888334E2B}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SimpleForthTest", "SimpleForthTest\SimpleForthTest.csproj", "{F406F2F7-A90F-45D7-99FE-918888334E2B}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{85100D48-F6D7-4049-8787-1721B276EBF0}"
+	ProjectSection(SolutionItems) = preProject
+		LICENSE = LICENSE
+		README.md = README.md
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
