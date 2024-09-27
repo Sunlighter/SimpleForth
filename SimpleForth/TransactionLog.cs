@@ -20,6 +20,8 @@ namespace SimpleForth
     {
         public abstract TransactionLogState State { get; }
 
+        public abstract AbstractTransactionLog Parent { get; }
+
         public abstract void AddUndo(ObjectKey k, Action undoAction);
 
         /// <summary>
@@ -30,7 +32,7 @@ namespace SimpleForth
         /// <summary>
         /// Carry out all the undo actions.
         /// </summary>
-        public abstract void Rollback();
+        public abstract void RollBack();
     }
 
     public sealed class ContinuousCommitTransactionLog : AbstractTransactionLog
@@ -43,6 +45,8 @@ namespace SimpleForth
 
         public override TransactionLogState State => TransactionLogState.ContinuousCommit;
 
+        public override AbstractTransactionLog Parent => this;
+
         public override void AddUndo(ObjectKey k, Action undoAction)
         {
             // do nothing
@@ -53,7 +57,7 @@ namespace SimpleForth
             // do nothing
         }
 
-        public override void Rollback()
+        public override void RollBack()
         {
             throw new InvalidOperationException("Cannot roll back due to continuous commits");
         }
@@ -73,6 +77,8 @@ namespace SimpleForth
         }
 
         public override TransactionLogState State => state;
+
+        public override AbstractTransactionLog Parent => parent;
 
         public override void AddUndo(ObjectKey k, Action undoAction)
         {
@@ -107,7 +113,7 @@ namespace SimpleForth
             }
         }
 
-        public override void Rollback()
+        public override void RollBack()
         {
             if (state == TransactionLogState.Open)
             {
@@ -121,6 +127,32 @@ namespace SimpleForth
             else
             {
                 throw new InvalidOperationException($"State should have been Open, was {state}");
+            }
+        }
+    }
+
+    public sealed class TransactionBox<T>
+    {
+        private readonly StrongBox<AbstractTransactionLog> log;
+        private T boxValue;
+
+        public TransactionBox(StrongBox<AbstractTransactionLog> log, T value)
+        {
+            this.log = log;
+            this.boxValue = value;
+        }
+
+        public T Value
+        {
+            get
+            {
+                return boxValue;
+            }
+            set
+            {
+                T oldValue = this.boxValue;
+                log.Value?.AddUndo(ObjectKey.CreateNamed(this, "value"), () => { boxValue = oldValue; });
+                this.boxValue = value;
             }
         }
     }

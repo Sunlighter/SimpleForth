@@ -40,7 +40,7 @@ namespace SimpleForth
             }
             dict = dict.Add(name, new ForthDictionaryEntry(transactionLog, name, xt, false));
             definitions.Dict = dict;
-            lastWordCompiled = name;
+            lastWordCompiled.Value = name;
         }
 
         private void Define(string name, Vocabulary vocabulary)
@@ -49,7 +49,7 @@ namespace SimpleForth
             if (dict.ContainsKey(name)) dict = dict.Remove(name);
             dict = dict.Add(name, new ForthDictionaryEntry(transactionLog, vocabulary));
             definitions.Dict = dict;
-            lastWordCompiled = name;
+            lastWordCompiled.Value = name;
         }
 
         private void LoadResourceStream(string name)
@@ -80,23 +80,23 @@ namespace SimpleForth
             LoadResourceStream("SimpleForth.x86asm.txt");
         }
 
-        private int numericBase;
+        private readonly TransactionBox<int> numericBase;
 
         private readonly object?[] memory;
-        private int here;
+        private readonly TransactionBox<int> here;
 
-        private bool isCompiling;
+        private readonly TransactionBox<bool> isCompiling;
 
-        public bool IsCompiling { get { return isCompiling; } }
+        public bool IsCompiling { get { return isCompiling.Value; } }
         
-        private string? lastWordCompiled; // or, if (isCompiling == false), word last compiled or created
+        private readonly TransactionBox<string?> lastWordCompiled; // or, if (isCompiling == false), word last compiled or created
 
         private readonly ForthStack<CompileState?> compileStack;
         private readonly ForthStack<LoopDeDoo?> loopStack;
 
-        private GetWordProc? getWord;
+        private readonly TransactionBox<GetWordProc?> getWord;
 
-        private string GetWord(char delim) => getWord.AssertNotNull()(delim).AssertNotNull();
+        private string GetWord(char delim) => getWord.Value.AssertNotNull()(delim).AssertNotNull();
 
         private delegate void SemicolonProc(CompositeWord cw);
 
@@ -209,37 +209,37 @@ namespace SimpleForth
 
         private class LoopDeDoo
         {
-            private long loopCounter;
-            private long loopCountEnd;
-            private int loopCodeBegin;
-            private int loopCodeEnd;
+            private readonly TransactionBox<long> loopCounter;
+            private readonly long loopCountEnd;
+            private readonly int loopCodeBegin;
+            private readonly int loopCodeEnd;
 
-            public LoopDeDoo(long loopCounter, long loopCountEnd, int loopCodeBegin, int loopCodeEnd)
+            public LoopDeDoo(StrongBox<AbstractTransactionLog> transactionLog, long loopCounter, long loopCountEnd, int loopCodeBegin, int loopCodeEnd)
             {
-                this.loopCounter = loopCounter;
+                this.loopCounter = new TransactionBox<long>(transactionLog, loopCounter);
                 this.loopCountEnd = loopCountEnd;
                 this.loopCodeBegin = loopCodeBegin;
                 this.loopCodeEnd = loopCodeEnd;
             }
 
-            public long LoopCounter { get { return loopCounter; } }
+            public long LoopCounter { get { return loopCounter.Value; } }
             public long LoopCountEnd { get { return loopCountEnd; } }
             public int LoopCodeBegin { get { return loopCodeBegin; } }
             public int LoopCodeEnd { get { return loopCodeEnd; } }
 
             public bool IncreaseLoopCounter(long amount)
             {
-                long newLoopCounter = loopCounter + amount;
-                bool result = Within(loopCounter, loopCountEnd - 1, newLoopCounter);
-                loopCounter = newLoopCounter;
+                long newLoopCounter = loopCounter.Value + amount;
+                bool result = Within(loopCounter.Value, loopCountEnd - 1, newLoopCounter);
+                loopCounter.Value = newLoopCounter;
                 return result;
             }
 
             public bool DecreaseLoopCounter(long amount)
             {
-                long newLoopCounter = loopCounter - amount;
+                long newLoopCounter = loopCounter.Value - amount;
                 bool result = Within(newLoopCounter, loopCountEnd, LoopCounter);
-                loopCounter = newLoopCounter;
+                loopCounter.Value = newLoopCounter;
                 return result;
             }
         }
@@ -348,12 +348,15 @@ namespace SimpleForth
             compileStack = new ForthStack<CompileState?>(transactionLog);
 
             loopStack = new ForthStack<LoopDeDoo?>(transactionLog);
-            numericBase = 10;
+            numericBase = new TransactionBox<int>(transactionLog, 10);
 
             memory = new object[1024];
-            here = 0;
+            here = new TransactionBox<int>(transactionLog, 0);
 
-            isCompiling = false;
+            isCompiling = new TransactionBox<bool>(transactionLog, false);
+
+            lastWordCompiled = new TransactionBox<string?>(transactionLog, null);
+            getWord = new TransactionBox<GetWordProc?>(transactionLog, null);
 
             // populate initial dictionary
 
@@ -468,7 +471,7 @@ namespace SimpleForth
 
         public void Execute(TextReader tr)
         {
-            getWord = delegate(char delimiter)
+            getWord.Value = delegate(char delimiter)
             {
                 return ReadWord(tr, delimiter);
             };
@@ -480,7 +483,7 @@ namespace SimpleForth
                 ForthDictionaryEntry? de = SearchVocabularies(word);
                 if (de != null)
                 {
-                    if (isCompiling)
+                    if (isCompiling.Value)
                     {
                         if (de.IsImmediate)
                         {
@@ -498,10 +501,10 @@ namespace SimpleForth
                 }
                 else
                 {
-                    long value; bool b = NumericValue(word, numericBase, out value);
+                    bool b = NumericValue(word, numericBase.Value, out long value);
                     if (b)
                     {
-                        if (isCompiling)
+                        if (isCompiling.Value)
                         {
                             AppendCode(MakeLiteralOp(value));
                         }
@@ -519,6 +522,29 @@ namespace SimpleForth
         {
             StringReader sr = new StringReader(cmds);
             Execute(sr);
+        }
+
+        public void BeginTransaction()
+        {
+            AbstractTransactionLog log = transactionLog.Value.AssertNotNull();
+
+            transactionLog.Value = new TransactionLog(log);
+        }
+
+        public void CommitTransaction()
+        {
+            AbstractTransactionLog log = transactionLog.Value.AssertNotNull();
+
+            log.Commit();
+            transactionLog.Value = log.Parent;
+        }
+
+        public void RollBackTransaction()
+        {
+            AbstractTransactionLog log = transactionLog.Value.AssertNotNull();
+
+            log.RollBack();
+            transactionLog.Value = log.Parent;
         }
 
         [ForthWord("true")]
@@ -797,13 +823,13 @@ namespace SimpleForth
         [ForthWord("decimal")]
         public static void Decimal(Forth f)
         {
-            f.numericBase = 10;
+            f.numericBase.Value = 10;
         }
 
         [ForthWord("hex")]
         public static void Hex(Forth f)
         {
-            f.numericBase = 16;
+            f.numericBase.Value = 16;
         }
 
         [ForthWord("=")]
@@ -925,7 +951,7 @@ namespace SimpleForth
         [ForthWord(".\"", IsImmediate = true)]
         public static void DotQuote(Forth f)
         {
-            if (f.isCompiling)
+            if (f.isCompiling.Value)
             {
                 string str = f.GetWord('"');
                 f.AppendCode
@@ -994,13 +1020,13 @@ namespace SimpleForth
         [ForthWord("here")]
         public static void Here(Forth f)
         {
-            f.PushInt64((long)(f.here));
+            f.PushInt64((long)(f.here.Value));
         }
 
         [ForthWord("unused")]
         public static void Unused(Forth f)
         {
-            f.PushInt64((long)(f.memory.Length - f.here));
+            f.PushInt64((long)(f.memory.Length - f.here.Value));
         }
 
         [ForthWord("@")]
@@ -1043,37 +1069,31 @@ namespace SimpleForth
         public static void Comma(Forth f)
         {
             object? v = f.dStack.Pop();
-            StoreMemory(f, f.here, v);
-            int oldHere = f.here;
-            f.transactionLog.Value?.AddUndo(ObjectKey.CreateNamed(f, "here"), () => { f.here = oldHere; });
-            f.here++;
+            StoreMemory(f, f.here.Value, v);
+            f.here.Value++;
         }
 
         [ForthWord("create")]
         public static void Create(Forth f)
         {
             string word = f.GetWord(' ');
-            f.Define(word, MakeLiteralOp((long)f.here));
+            f.Define(word, MakeLiteralOp((long)f.here.Value));
         }
 
         [ForthWord("allot")]
         public static void Allot(Forth f)
         {
             long amt = f.PopInt64();
-            if (amt > (long)(f.memory.Length - f.here)) throw new ArgumentOutOfRangeException("Attempt to allot more memory than is available");
-            int oldHere = f.here;
-            f.transactionLog.Value?.AddUndo(ObjectKey.CreateNamed(f, "here"), () => { f.here = oldHere; });
-            f.here += (int)amt;
+            if (amt > (long)(f.memory.Length - f.here.Value)) throw new ArgumentOutOfRangeException("Attempt to allot more memory than is available");
+            f.here.Value += (int)amt;
         }
 
         [ForthWord("variable")]
         public static void Variable(Forth f)
         {
             Create(f);
-            StoreMemory(f, f.here, null);
-            int oldHere = f.here;
-            f.transactionLog.Value?.AddUndo(ObjectKey.CreateNamed(f, "here"), () => { f.here = oldHere; });
-            f.here++;
+            StoreMemory(f, f.here.Value, null);
+            f.here.Value++;
         }
 
         private class CompositeWord
@@ -1146,7 +1166,7 @@ namespace SimpleForth
         public static void Define(Forth f)
         {
             if (!f.compileStack.IsEmpty) throw new InvalidOperationException("Nested definitions are not permitted");
-            f.isCompiling = true;
+            f.isCompiling.Value = true;
             string localWordBeingCompiled = f.GetWord(' ');
             f.compileStack.Push
             (
@@ -1165,7 +1185,7 @@ namespace SimpleForth
         public static void DefineNoname(Forth f)
         {
             if (!f.compileStack.IsEmpty) throw new InvalidOperationException("Nested definitions are not permitted");
-            f.isCompiling = true;
+            f.isCompiling.Value = true;
             f.compileStack.Push
             (
                 new CompileState
@@ -1182,7 +1202,7 @@ namespace SimpleForth
         [ForthWord("does>", IsImmediate = true)]
         public static void Does(Forth f)
         {
-            if (!f.isCompiling) throw new InvalidOperationException("does> is only valid when compiling");
+            if (!f.isCompiling.Value) throw new InvalidOperationException("does> is only valid when compiling");
             f.compileStack.Push
             (
                 new CompileState
@@ -1196,7 +1216,7 @@ namespace SimpleForth
                             delegate(Forth g)
                             {
                                 //System.Diagnostics.Debug.WriteLine("Executing does> (setting up " + g.lastWordCompiled + ")");
-                                string localLastWordCompiled = g.lastWordCompiled.AssertNotNull();
+                                string localLastWordCompiled = g.lastWordCompiled.Value.AssertNotNull();
                                 ForthDictionaryEntry fde = g.definitions.Dict[localLastWordCompiled];
                                 ExecutionToken oldBehavior = fde.Proc;
                                 fde.Proc = delegate(Forth h)
@@ -1225,15 +1245,15 @@ namespace SimpleForth
                 CompileState compileState = f.compileStack.Pop().AssertNotNull();
                 compileState.SemicolonProc(compileState.CompositeWord);
             }
-            f.isCompiling = false;
+            f.isCompiling.Value = false;
         }
 
         [ForthWord("immediate")]
         public static void Immediate(Forth f)
         {
-            if (f.lastWordCompiled == null) throw new InvalidOperationException("No word has been compiled");
-            if (!f.definitions.Dict.ContainsKey(f.lastWordCompiled)) throw new InvalidOperationException("Compiled word not found");
-            f.definitions.Dict[f.lastWordCompiled].IsImmediate = true;
+            if (f.lastWordCompiled.Value == null) throw new InvalidOperationException("No word has been compiled");
+            if (!f.definitions.Dict.ContainsKey(f.lastWordCompiled.Value.AssertNotNull())) throw new InvalidOperationException("Compiled word not found");
+            f.definitions.Dict[f.lastWordCompiled.Value.AssertNotNull()].IsImmediate = true;
         }
 
         public static void JumpIfFalse(Forth f)
@@ -1252,7 +1272,7 @@ namespace SimpleForth
         [ForthWord("begin", IsImmediate = true)]
         public static void Begin(Forth f)
         {
-            if (!f.isCompiling) throw new InvalidOperationException("begin is only valid when compiling");
+            if (!f.isCompiling.Value) throw new InvalidOperationException("begin is only valid when compiling");
             f.CodeBeingCompiled.LabelBack(f);
         }
 
@@ -1271,14 +1291,14 @@ namespace SimpleForth
         [ForthWord("then", IsImmediate = true)]
         public static void Then(Forth f)
         {
-            if (!f.isCompiling) throw new InvalidOperationException("then is only valid when compiling");
+            if (!f.isCompiling.Value) throw new InvalidOperationException("then is only valid when compiling");
             f.CodeBeingCompiled.LabelForward(f);
         }
 
         [ForthWord("until", IsImmediate = true)]
         public static void Until(Forth f)
         {
-            if (!f.isCompiling) throw new InvalidOperationException("until is only valid when compiling");
+            if (!f.isCompiling.Value) throw new InvalidOperationException("until is only valid when compiling");
             f.CodeBeingCompiled.RefBack(f);
             f.AppendCode(new ExecutionToken(JumpIfFalse));
         }
@@ -1286,7 +1306,7 @@ namespace SimpleForth
         [ForthWord("if", IsImmediate = true)]
         public static void If(Forth f)
         {
-            if (!f.isCompiling) throw new InvalidOperationException("if / while is only valid when compiling");
+            if (!f.isCompiling.Value) throw new InvalidOperationException("if / while is only valid when compiling");
             f.CodeBeingCompiled.RefForward(f);
             f.AppendCode(new ExecutionToken(JumpIfFalse));
         }
@@ -1294,7 +1314,7 @@ namespace SimpleForth
         [ForthWord("else", IsImmediate = true)]
         public static void Else(Forth f)
         {
-            if (!f.isCompiling) throw new InvalidOperationException("else is only valid when compiling");
+            if (!f.isCompiling.Value) throw new InvalidOperationException("else is only valid when compiling");
             Ahead(f);
             f.dStack.Swap();
             Then(f);
@@ -1309,7 +1329,7 @@ namespace SimpleForth
         [ForthWord("repeat", IsImmediate = true)]
         public static void Repeat(Forth f)
         {
-            if (!f.isCompiling) throw new InvalidOperationException("repeat is only valid when compiling");
+            if (!f.isCompiling.Value) throw new InvalidOperationException("repeat is only valid when compiling");
             f.dStack.Swap();
             Again(f);
             Then(f);
@@ -1321,13 +1341,13 @@ namespace SimpleForth
             long beginCount = f.PopInt64();
             long endCount = f.PopInt64();
             int beginAddr = f.rStack.Top;
-            f.loopStack.Push(new LoopDeDoo(beginCount, endCount, beginAddr, endAddr));
+            f.loopStack.Push(new LoopDeDoo(f.transactionLog, beginCount, endCount, beginAddr, endAddr));
         }
 
         [ForthWord("do", IsImmediate = true)]
         public static void Do(Forth f)
         {
-            if (!f.isCompiling) throw new InvalidOperationException("do is only valid when compiling");
+            if (!f.isCompiling.Value) throw new InvalidOperationException("do is only valid when compiling");
             f.CodeBeingCompiled.RefForward(f);
             f.AppendCode(new ExecutionToken(RuntimeDo));
         }
@@ -1344,14 +1364,14 @@ namespace SimpleForth
             }
             else
             {
-                f.loopStack.Push(new LoopDeDoo(beginCount, endCount, beginAddr, endAddr));
+                f.loopStack.Push(new LoopDeDoo(f.transactionLog, beginCount, endCount, beginAddr, endAddr));
             }
         }
 
         [ForthWord("?do", IsImmediate = true)]
         public static void QuestionDo(Forth f)
         {
-            if (!f.isCompiling) throw new InvalidOperationException("?do is only valid when compiling");
+            if (!f.isCompiling.Value) throw new InvalidOperationException("?do is only valid when compiling");
             f.CodeBeingCompiled.RefForward(f);
             f.AppendCode(new ExecutionToken(RuntimeQuestionDo));
         }
@@ -1368,7 +1388,7 @@ namespace SimpleForth
         [ForthWord("loop", IsImmediate = true)]
         public static void Loop(Forth f)
         {
-            if (!f.isCompiling) throw new InvalidOperationException("loop is only valid when compiling");
+            if (!f.isCompiling.Value) throw new InvalidOperationException("loop is only valid when compiling");
             f.AppendCode(new ExecutionToken(RuntimeLoop));
             f.CodeBeingCompiled.LabelForward(f);
         }
@@ -1376,7 +1396,7 @@ namespace SimpleForth
         [ForthWord("i", IsImmediate = true)]
         public static void LoopI(Forth f)
         {
-            if (!f.isCompiling) throw new InvalidOperationException("i is only valid when compiling");
+            if (!f.isCompiling.Value) throw new InvalidOperationException("i is only valid when compiling");
             f.AppendCode
             (
                 delegate(Forth g)
@@ -1389,7 +1409,7 @@ namespace SimpleForth
         [ForthWord("j", IsImmediate = true)]
         public static void LoopJ(Forth f)
         {
-            if (!f.isCompiling) throw new InvalidOperationException("j is only valid when compiling");
+            if (!f.isCompiling.Value) throw new InvalidOperationException("j is only valid when compiling");
             f.AppendCode
             (
                 delegate(Forth g)
@@ -1402,7 +1422,7 @@ namespace SimpleForth
         [ForthWord("unloop", IsImmediate = true)]
         public static void Unloop(Forth f)
         {
-            if (!f.isCompiling) throw new InvalidOperationException("unloop is only valid when compiling");
+            if (!f.isCompiling.Value) throw new InvalidOperationException("unloop is only valid when compiling");
             f.AppendCode
             (
                 delegate(Forth g)
@@ -1415,7 +1435,7 @@ namespace SimpleForth
         [ForthWord("leave", IsImmediate = true)]
         public static void Leave(Forth f)
         {
-            if (!f.isCompiling) throw new InvalidOperationException("leave is only valid when compiling");
+            if (!f.isCompiling.Value) throw new InvalidOperationException("leave is only valid when compiling");
             f.AppendCode
             (
                 delegate(Forth g)
@@ -1451,7 +1471,7 @@ namespace SimpleForth
         [ForthWord("+loop", IsImmediate = true)]
         public static void PlusLoop(Forth f)
         {
-            if (!f.isCompiling) throw new InvalidOperationException("+loop is only valid when compiling");
+            if (!f.isCompiling.Value) throw new InvalidOperationException("+loop is only valid when compiling");
             f.AppendCode(new ExecutionToken(RuntimePlusLoop));
             f.CodeBeingCompiled.LabelForward(f);
         }
@@ -1469,7 +1489,7 @@ namespace SimpleForth
         [ForthWord("u+loop", IsImmediate = true)]
         public static void UnsignedPlusLoop(Forth f)
         {
-            if (!f.isCompiling) throw new InvalidOperationException("u+loop is only valid when compiling");
+            if (!f.isCompiling.Value) throw new InvalidOperationException("u+loop is only valid when compiling");
             f.AppendCode(new ExecutionToken(RuntimeUPlusLoop));
             f.CodeBeingCompiled.LabelForward(f);
         }
@@ -1487,7 +1507,7 @@ namespace SimpleForth
         [ForthWord("u-loop", IsImmediate = true)]
         public static void UnsignedMinusLoop(Forth f)
         {
-            if (!f.isCompiling) throw new InvalidOperationException("u-loop is only valid when compiling");
+            if (!f.isCompiling.Value) throw new InvalidOperationException("u-loop is only valid when compiling");
             f.AppendCode(new ExecutionToken(RuntimeUMinusLoop));
             f.CodeBeingCompiled.LabelForward(f);
         }
@@ -1495,20 +1515,20 @@ namespace SimpleForth
         [ForthWord("[", IsImmediate = true)]
         public static void LeftBracket(Forth f)
         {
-            f.isCompiling = false;
+            f.isCompiling.Value = false;
         }
 
         [ForthWord("]")]
         public static void RightBracket(Forth f)
         {
             if (f.compileStack.IsEmpty) throw new InvalidOperationException("] can only be used to continue compiling");
-            f.isCompiling = true;
+            f.isCompiling.Value = true;
         }
 
         [ForthWord("literal", IsImmediate = true)]
         public static void Literal(Forth f)
         {
-            if (!f.isCompiling) throw new InvalidOperationException("literal is only valid when compiling");
+            if (!f.isCompiling.Value) throw new InvalidOperationException("literal is only valid when compiling");
             object? value = f.dStack.Pop();
             f.AppendCode(MakeLiteralOp(value));
         }
@@ -1522,7 +1542,7 @@ namespace SimpleForth
         [ForthWord("postpone", IsImmediate = true)]
         public static void Postpone(Forth f)
         {
-            if (!f.isCompiling) throw new InvalidOperationException("postpone is only valid when compiling");
+            if (!f.isCompiling.Value) throw new InvalidOperationException("postpone is only valid when compiling");
             string word = f.GetWord(' ');
             ForthDictionaryEntry? fde = f.SearchVocabularies(word);
             if (fde == null) throw new InvalidOperationException("attempt to postpone undefined word " + word);
@@ -1549,7 +1569,7 @@ namespace SimpleForth
         [ForthWord("[']")]
         public static void BracketTick(Forth f)
         {
-            if (!f.isCompiling) throw new InvalidOperationException("bracket-tick is only valid when compiling");
+            if (!f.isCompiling.Value) throw new InvalidOperationException("bracket-tick is only valid when compiling");
             string word = f.GetWord(' ');
             ForthDictionaryEntry? fde = f.SearchVocabularies(word);
             if (fde == null) throw new InvalidOperationException("attempt to bracket-tick undefined word " + word);
@@ -1637,7 +1657,7 @@ namespace SimpleForth
         [ForthWord("pf-bytes", IsImmediate = true)]
         public static void PfBytes(Forth f)
         {
-            if (f.isCompiling)
+            if (f.isCompiling.Value)
             {
                 string hex = f.GetWord(' ');
                 f.AppendCode(MakeLiteralOp(HexToBytes(hex)));
