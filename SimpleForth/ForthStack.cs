@@ -8,28 +8,17 @@ namespace SimpleForth
 {
     public sealed class ForthStack<T>
     {
-        private readonly StrongBox<AbstractTransactionLog> transactionLog;
-        private ImmutableList<T> _items;
+        private TransactionBox<ImmutableList<T>> _items;
 
         public ForthStack(StrongBox<AbstractTransactionLog> transactionLog)
         {
-            this.transactionLog = transactionLog;
-            
-            _items = ImmutableList<T>.Empty;
+            _items = new TransactionBox<ImmutableList<T>>(transactionLog, ImmutableList<T>.Empty);
         }
 
         private ImmutableList<T> items
         {
-            get
-            {
-                return _items;
-            }
-            set
-            {
-                ImmutableList<T> oldItems = _items;
-                transactionLog.Value?.AddUndo(ObjectKey.CreateNamed(this, "items"), () => { this._items = oldItems; });
-                _items = value;
-            }
+            get { return _items.Value; }
+            set { _items.Value = value; }
         }
 
         public void Push(T item)
