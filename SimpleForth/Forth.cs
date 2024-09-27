@@ -379,6 +379,9 @@ namespace SimpleForth
             byteMemory = new TransactionBox<IByteMemory?>(transactionLog, null);
             byteHere = new TransactionBox<long>(transactionLog, 0L);
 
+            rexStatus = new TransactionBox<RexStatus>(transactionLog, RexStatus.None);
+            rexLocation = new TransactionBox<long>(transactionLog, 0L);
+
             // populate initial dictionary
 
             ImmutableDictionary<string, ForthDictionaryEntry> dict = definitions.Dict;
@@ -1909,13 +1912,13 @@ namespace SimpleForth
         }
 
 #if true
-        private RexStatus rexStatus;
+        private TransactionBox<RexStatus> rexStatus;
 
-        public RexStatus RexStatus { get { return rexStatus; } set { rexStatus = value; } }
+        public RexStatus RexStatus { get { return rexStatus.Value; } set { rexStatus.Value = value; } }
 
-        private long rexLocation;
+        private TransactionBox<long> rexLocation;
 
-        public long RexLocation { get { return rexLocation; } set { rexLocation = value; } }
+        public long RexLocation { get { return rexLocation.Value; } set { rexLocation.Value = value; } }
 
         [ForthWord(",,")]
         public static void DoubleComma(Forth f)
