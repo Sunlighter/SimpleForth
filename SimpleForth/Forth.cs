@@ -4,11 +4,14 @@ using System.Text;
 using System.Reflection;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 
 namespace SimpleForth
 {
     public class Forth
     {
+        private readonly StrongBox<AbstractTransactionLog> transactionLog;
+
         private ForthStack<object?> dStack;
         private ForthStack<object?> aStack;
         private ForthStack<int> rStack;
@@ -290,18 +293,20 @@ namespace SimpleForth
 
         public Forth()
         {
-            dStack = new ForthStack<object?>();
-            aStack = new ForthStack<object?>();
-            rStack = new ForthStack<int>();
+            transactionLog = new StrongBox<AbstractTransactionLog>(ContinuousCommitTransactionLog.Instance);
 
-            searchOrder = new ForthStack<Vocabulary?>();
+            dStack = new ForthStack<object?>(transactionLog);
+            aStack = new ForthStack<object?>(transactionLog);
+            rStack = new ForthStack<int>(transactionLog);
+
+            searchOrder = new ForthStack<Vocabulary?>(transactionLog);
             definitions = new Vocabulary("forth");
             definitions.Dict.Add("forth", new ForthDictionaryEntry(definitions));
             searchOrder.Push(definitions);
 
-            compileStack = new ForthStack<CompileState?>();
+            compileStack = new ForthStack<CompileState?>(transactionLog);
 
-            loopStack = new ForthStack<LoopDeDoo?>();
+            loopStack = new ForthStack<LoopDeDoo?>(transactionLog);
             numericBase = 10;
 
             memory = new object[1024];

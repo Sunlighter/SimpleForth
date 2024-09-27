@@ -1,17 +1,35 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace SimpleForth
 {
-    public class ForthStack<T>
+    public sealed class ForthStack<T>
     {
-        private ImmutableList<T> items;
+        private readonly StrongBox<AbstractTransactionLog> transactionLog;
+        private ImmutableList<T> _items;
 
-        public ForthStack()
+        public ForthStack(StrongBox<AbstractTransactionLog> transactionLog)
         {
-            items = ImmutableList<T>.Empty;
+            this.transactionLog = transactionLog;
+            
+            _items = ImmutableList<T>.Empty;
+        }
+
+        private ImmutableList<T> items
+        {
+            get
+            {
+                return _items;
+            }
+            set
+            {
+                ImmutableList<T> oldItems = _items;
+                transactionLog.Value?.AddUndo(ObjectKey.CreateNamed(this, "items"), () => { this._items = oldItems; });
+                _items = value;
+            }
         }
 
         public void Push(T item)
@@ -21,6 +39,7 @@ namespace SimpleForth
 
         public T Pop()
         {
+
             if (items.IsEmpty) throw new ForthStackException("Stack underflow");
             T item = items[0];
             items = items.RemoveAt(0);
