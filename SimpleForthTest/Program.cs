@@ -31,7 +31,7 @@ namespace SimpleForthTest
 #endif
                 
                 Console.WriteLine("Sunlit World Forth in C#");
-                Console.WriteLine("Copyright (c) 2007 by Edward Kiser");
+                Console.WriteLine("Copyright (c) 2007, 2024 by Edward Kiser");
                 Console.WriteLine("All Rights Reserved");
                 if (MemoryBlock.Is64Bit) Console.WriteLine("[Running in 64-bit Mode]");
                 using (MemoryBlock mb = new MemoryBlock((UIntPtr)0x20000))
