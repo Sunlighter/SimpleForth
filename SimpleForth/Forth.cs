@@ -38,7 +38,7 @@ namespace SimpleForth
             {
                 dict = dict.Remove(name);
             }
-            dict = dict.Add(name, new ForthDictionaryEntry(name, xt, false));
+            dict = dict.Add(name, new ForthDictionaryEntry(transactionLog, name, xt, false));
             definitions.Dict = dict;
             lastWordCompiled = name;
         }
@@ -47,7 +47,7 @@ namespace SimpleForth
         {
             ImmutableDictionary<string, ForthDictionaryEntry> dict = definitions.Dict;
             if (dict.ContainsKey(name)) dict = dict.Remove(name);
-            dict = dict.Add(name, new ForthDictionaryEntry(vocabulary));
+            dict = dict.Add(name, new ForthDictionaryEntry(transactionLog, vocabulary));
             definitions.Dict = dict;
             lastWordCompiled = name;
         }
@@ -117,21 +117,24 @@ namespace SimpleForth
 
         private class ForthDictionaryEntry
         {
-            private string name;
+            private readonly StrongBox<AbstractTransactionLog> transactionLog;
+            private readonly string name;
             private ExecutionToken proc;
             private bool isImmediate;
-            private Vocabulary? vocabulary;
+            private readonly Vocabulary? vocabulary;
 
-            public ForthDictionaryEntry(string name, ExecutionToken proc, bool isImmediate)
+            public ForthDictionaryEntry(StrongBox<AbstractTransactionLog> transactionLog, string name, ExecutionToken proc, bool isImmediate)
             {
+                this.transactionLog = transactionLog;
                 this.name = name;
                 this.proc = proc;
                 this.isImmediate = isImmediate;
                 this.vocabulary = null;
             }
 
-            public ForthDictionaryEntry(Vocabulary vocabulary)
+            public ForthDictionaryEntry(StrongBox<AbstractTransactionLog> transactionLog, Vocabulary vocabulary)
             {
+                this.transactionLog = transactionLog;
                 this.name = vocabulary.Name;
                 this.vocabulary = vocabulary;
                 this.proc = delegate(Forth f) { f.searchOrder.Top = this.vocabulary; };
@@ -140,9 +143,27 @@ namespace SimpleForth
 
             public string Name { get { return name; } }
 
-            public ExecutionToken Proc { get { return proc; } set { proc = value; } }
+            public ExecutionToken Proc
+            {
+                get { return proc; }
+                set
+                {
+                    ExecutionToken oldProc = proc;
+                    transactionLog.Value?.AddUndo(ObjectKey.CreateNamed(this, "proc"), () => { proc = oldProc; });
+                    proc = value;
+                }
+            }
 
-            public bool IsImmediate { get { return isImmediate; } set { isImmediate = value; } }
+            public bool IsImmediate
+            {
+                get { return isImmediate; }
+                set
+                {
+                    bool oldIsImmediate = isImmediate;
+                    transactionLog.Value?.AddUndo(ObjectKey.CreateNamed(this, "isImmediate"), () => { isImmediate = oldIsImmediate; });
+                    isImmediate = value;
+                }
+            }
 
             public Vocabulary? Vocabulary { get { return vocabulary; } }
         }
@@ -321,7 +342,7 @@ namespace SimpleForth
 
             searchOrder = new ForthStack<Vocabulary?>(transactionLog);
             definitions = new Vocabulary(transactionLog, "forth");
-            definitions.Dict = definitions.Dict.Add("forth", new ForthDictionaryEntry(definitions));
+            definitions.Dict = definitions.Dict.Add("forth", new ForthDictionaryEntry(transactionLog, definitions));
             searchOrder.Push(definitions);
 
             compileStack = new ForthStack<CompileState?>(transactionLog);
@@ -349,6 +370,7 @@ namespace SimpleForth
                 ForthWordAttribute fwa = (ForthWordAttribute)obj[0];
                 ForthDictionaryEntry fde = new ForthDictionaryEntry
                 (
+                    transactionLog,
                     fwa.Name,
                     (ExecutionToken)Delegate.CreateDelegate
                     (
@@ -1579,7 +1601,7 @@ namespace SimpleForth
             string name = f.GetWord(' ');
             ImmutableDictionary<string, ForthDictionaryEntry> dict = f.definitions.Dict;
             if (dict.ContainsKey(name)) dict = dict.Remove(name);
-            dict = dict.Add(name, new ForthDictionaryEntry(new Vocabulary(f.transactionLog, name)));
+            dict = dict.Add(name, new ForthDictionaryEntry(f.transactionLog, new Vocabulary(f.transactionLog, name)));
             f.definitions.Dict = dict;
         }
 
