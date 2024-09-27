@@ -82,6 +82,7 @@ namespace SimpleForth
 
         public override void AddUndo(ObjectKey k, Action undoAction)
         {
+            if (state != TransactionLogState.Open) throw new InvalidOperationException($"State should have been Open, was {state}");
             undoActions.TryAdd(k, undoAction);
         }
 
@@ -117,12 +118,19 @@ namespace SimpleForth
         {
             if (state == TransactionLogState.Open)
             {
-                foreach(KeyValuePair<ObjectKey, Action> kvp in undoActions)
+                if (parent.State == TransactionLogState.Open || parent.State == TransactionLogState.ContinuousCommit)
                 {
-                    kvp.Value();
-                }
+                    foreach (KeyValuePair<ObjectKey, Action> kvp in undoActions)
+                    {
+                        kvp.Value();
+                    }
 
-                state = TransactionLogState.RolledBack;
+                    state = TransactionLogState.RolledBack;
+                }
+                else
+                {
+                    throw new InvalidOperationException($"Parent transaction state should have been Open or ContinuousCommit, was {parent.State}");
+                }
             }
             else
             {
