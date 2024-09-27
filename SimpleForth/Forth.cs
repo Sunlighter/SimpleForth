@@ -13,12 +13,30 @@ namespace SimpleForth
     {
         private readonly StrongBox<AbstractTransactionLog> transactionLog;
 
-        private ForthStack<object?> dStack;
-        private ForthStack<object?> aStack;
+        private readonly TransactionBox<ForthStack<object?>> _dStack;
+        private readonly TransactionBox<ForthStack<object?>> _aStack;
         private readonly ForthStack<int> rStack;
 
+        private ForthStack<object?> dStack
+        {
+            get { return _dStack.Value; }
+            set { _dStack.Value = value; }
+        }
+
+        private ForthStack<object?> aStack
+        {
+            get { return _aStack.Value; }
+            set { _aStack.Value = value; }
+        }
+
         private readonly ForthStack<Vocabulary?> searchOrder;
-        private Vocabulary definitions;
+        private readonly TransactionBox<Vocabulary> _definitions;
+
+        private Vocabulary definitions
+        {
+            get { return _definitions.Value; }
+            set { _definitions.Value = value; }
+        }
 
         private ForthDictionaryEntry? SearchVocabularies(string name)
         {
@@ -26,7 +44,7 @@ namespace SimpleForth
             for (int i = 0; i < iEnd; ++i)
             {
                 ImmutableDictionary<string, ForthDictionaryEntry> dict = searchOrder[i].AssertNotNull().Dict;
-                if (dict.ContainsKey(name)) return dict[name];
+                if (dict.TryGetValue(name, out ForthDictionaryEntry? value)) return value;
             }
             return null;
         }
@@ -336,12 +354,12 @@ namespace SimpleForth
         {
             transactionLog = new StrongBox<AbstractTransactionLog>(ContinuousCommitTransactionLog.Instance);
 
-            dStack = new ForthStack<object?>(transactionLog);
-            aStack = new ForthStack<object?>(transactionLog);
+            _dStack = new TransactionBox<ForthStack<object?>>(transactionLog, new ForthStack<object?>(transactionLog));
+            _aStack = new TransactionBox<ForthStack<object?>>(transactionLog, new ForthStack<object?>(transactionLog));
             rStack = new ForthStack<int>(transactionLog);
 
             searchOrder = new ForthStack<Vocabulary?>(transactionLog);
-            definitions = new Vocabulary(transactionLog, "forth");
+            _definitions = new TransactionBox<Vocabulary>(transactionLog, new Vocabulary(transactionLog, "forth"));
             definitions.Dict = definitions.Dict.Add("forth", new ForthDictionaryEntry(transactionLog, definitions));
             searchOrder.Push(definitions);
 
