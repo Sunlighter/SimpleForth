@@ -25,3 +25,7 @@ Blocks of byte memory are *not* protected by transactions yet; I will have to ma
 fancier in order to support that. Even if I did make those modifications, they would only protect byte memory from
 modifications made by Forth itself. If you generate assembly code and execute it, the whole transaction mechanism is
 bypassed, and executing incorrect assembly code can still crash the program.
+
+**Note:** Due to an amusing design flaw, the reading of numbers defaults to hex, but printing by the `.` word is
+always done in decimal. This leads to weird results such as `11 17 + .` printing `40`. Use `decimal` if you want to
+use decimal for input.
